@@ -27,12 +27,10 @@ Team Roles:
 Future Developments
 
 Footer:
-Copyright: COS30045 - Hanoi Jan 2026 - Group 3
-Data Source: https://datahub.roadsafety.gov.au/safe-systems/safe-road-use/police-enforcement
-Link to Github:
-https://github.com/nnhatlam/cos30045_finalproject
-AI Declaration:
-This webpage is developed with the help of GitHub Copilot, Google Gemini, Antigravity, and ChatGPT
+- Copyright: COS30045 - Hanoi Jan 2026 - Group 3
+- Data Source: https://datahub.roadsafety.gov.au/safe-systems/safe-road-use/police-enforcement
+- Link to Github: https://github.com/nnhatlam/cos30045_finalproject
+- AI Declaration: This webpage is developed with the help of GitHub Copilot, Google Gemini, Antigravity, and ChatGPT
 
 ## Styling
 - Nav bar: background: var(--linear1, linear-gradient(180deg, #062654 0%, #7FADE0 100%));
