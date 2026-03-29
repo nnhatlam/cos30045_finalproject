@@ -1,5 +1,5 @@
 # cos30045_finalproject
-
+The web must be responsive for both laptop and mobile phones
 ## Pages:
 Nav bar: 
 - Title: Australian Mobile phone Fines
@@ -11,7 +11,7 @@ This webpage is designed to inform policymakers, researchers, the public and med
 Mobile phone use while driving is a major safety issue in Australia. Existing dashboards present basic trends but fail to fully leverage the detailed enforcement data collected since 2023, limiting deeper insights into driver behavior, demographical differences, and the impact of AI cameras on road safety.
 This web page version attempted to improve the current Data Hub by allowing users to interact with data more deeply.
  
-Call to action buttons:
+Call to action buttons - large card:
 Explore Data -> link to Data page
 Ethics and Data Policy -> Link to policy
 About Us -> link to about us
@@ -41,12 +41,12 @@ Footer:
 
 ## Styling
 - Nav bar: background: var(--linear1, linear-gradient(180deg, #062654 0%, #7FADE0 100%));
-- Body background: background: linear-gradient(180deg, #A2D697 0.96%, #E7E9D8 39.43%, #A5C6DB 100%);
-- Footer: background: background: linear-gradient(180deg, #EAF0F7 49.52%, #A9BCD3 100%);
-- Button styles: Glass effect, mouse-hover effect
-  * Primary: green
-  * Secondary: Blue
+- Body background: background: linear-gradient(180deg, #EAF0F7 49.52%, #A9BCD3 100%);
+- Footer: background: #062654;
+- Button styles: have mouse-hover effect
 - Text: Font: Public Sans
-  * Primary: #03695e
-  * Secondary: #2265a2
-  * Content: #1e1e1e
+ ## Tech Stack:
+ - HTML
+ - CSS
+ - JavaScripts (use scripts for navigation through pages and ensure that the active page is highlight in nav bar)
+ 
