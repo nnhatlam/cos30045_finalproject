@@ -1,10 +1,17 @@
 # cos30045_finalproject
 
 ## Pages:
+Nav bar: 
+- Title: Australian Mobile phone Fines
+- Caption: National Road Safety Data - COS30045 Final Project
+- Buttons to navigate to pages on the right
 1. Dashboard
-This webpage is designed to inform policymakers, researchers, the public and media about trends in illegal mobile phone use while driving in Australia. 
+This webpage is designed to inform policymakers, researchers, the public and media about trends in illegal mobile phone use while driving in Australia.
 
-Buttons: 
+Mobile phone use while driving is a major safety issue in Australia. Existing dashboards present basic trends but fail to fully leverage the detailed enforcement data collected since 2023, limiting deeper insights into driver behavior, demographical differences, and the impact of AI cameras on road safety.
+This web page version attempted to improve the current Data Hub by allowing users to interact with data more deeply.
+ 
+Call to action buttons:
 Explore Data -> link to Data page
 Ethics and Data Policy -> Link to policy
 About Us -> link to about us
@@ -17,7 +24,7 @@ Data Problems
 Policy
 
 4. About us
-Project Title
+Project Title: Mobile Phone Fines in Australia: Insights and Trends
 Our team: a team of Swinburne University of Technology students, majoring in data science. This project is part of our final project in unit COS30045 - Data Visualisation
 Team Roles:
 <<member1>>Cap Viet Anh:<<place holder for role>>
