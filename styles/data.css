@@ -1,0 +1,330 @@
+/* ============================================================
+   data.css — data.html story-page styles
+   Australian Mobile Phone Fines — COS30045 Final Project
+   ============================================================ */
+
+/* ── Story Hero ─────────────────────────────────────────────── */
+.story-hero {
+  position: relative;
+  background: var(--linear1);
+  border-radius: 22px;
+  padding: clamp(2rem, 4vw, 3.4rem) clamp(1.5rem, 3vw, 2.8rem);
+  color: #f0f7ff;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
+}
+
+.story-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 80% 20%, rgba(125, 194, 240, 0.22) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.story-hero__tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  margin-bottom: 1rem;
+  color: #d8eeff;
+}
+
+.story-hero__title {
+  margin: 0 0 1rem;
+  font-size: clamp(1.6rem, 3.5vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.22;
+  max-width: 20ch;
+}
+
+.story-hero__lead {
+  margin: 0 0 1.8rem;
+  max-width: 64ch;
+  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+  line-height: 1.72;
+  opacity: 0.92;
+}
+
+.story-hero__scroll-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  opacity: 0.7;
+  animation: bounce 2s ease infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(5px); }
+}
+
+/* ── Stat Strip ─────────────────────────────────────────────── */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem;
+  margin-bottom: 2.4rem;
+}
+
+.stat-card {
+  background: var(--white-glass-strong);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 16px;
+  padding: 1.1rem 1.2rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 34px rgba(16, 49, 89, 0.18);
+}
+
+.stat-card__value {
+  font-size: clamp(1.5rem, 2.5vw, 2.1rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.stat-card__label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ── Story Chapters ─────────────────────────────────────────── */
+.story-chapter {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 22px;
+  padding: clamp(1.5rem, 3vw, 2.4rem);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  margin-bottom: 2rem;
+}
+
+.story-chapter--alt {
+  background: linear-gradient(135deg, rgba(46, 155, 102, 0.07), rgba(59, 121, 181, 0.08));
+}
+
+.chapter-header {
+  margin-bottom: 1.6rem;
+}
+
+.chapter-number {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: rgba(59, 121, 181, 0.1);
+  border: 1px solid rgba(59, 121, 181, 0.2);
+  border-radius: 999px;
+  padding: 0.22rem 0.7rem;
+  margin-bottom: 0.65rem;
+}
+
+.chapter-title {
+  margin: 0.3rem 0 0.7rem;
+  font-size: clamp(1.2rem, 2.2vw, 1.7rem);
+  color: var(--text-primary);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.chapter-body {
+  margin: 0;
+  max-width: 72ch;
+  line-height: 1.72;
+  color: var(--text-content);
+  font-size: 1rem;
+}
+
+/* ── Chart Rows ─────────────────────────────────────────────── */
+.chart-row {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.4rem;
+}
+
+.chart-row--single {
+  grid-template-columns: 1fr;
+}
+
+.chart-row--two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* ── Chart Panel ────────────────────────────────────────────── */
+.chart-panel {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 16px;
+  padding: 1.2rem 1.3rem;
+  box-shadow: 0 6px 18px rgba(16, 49, 89, 0.09);
+}
+
+.chart-panel__title {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.chart-panel__subtitle {
+  margin: 0 0 0.8rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+/* ── Chart Host ─────────────────────────────────────────────── */
+.chart-host {
+  width: 100%;
+  min-height: 260px;
+  position: relative;
+}
+
+.chart-host svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* axis text */
+.chart-host .tick text {
+  font-family: "Public Sans", sans-serif;
+  font-size: 0.75rem;
+  fill: #44627a;
+}
+
+/* ── Insight Cards ──────────────────────────────────────────── */
+.insight-card {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  background: rgba(59, 121, 181, 0.08);
+  border: 1px solid rgba(59, 121, 181, 0.2);
+  border-radius: 14px;
+  padding: 1rem 1.2rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-content);
+  margin-top: 0.5rem;
+}
+
+.insight-card--green {
+  background: rgba(46, 155, 102, 0.08);
+  border-color: rgba(46, 155, 102, 0.22);
+}
+
+.insight-card--red {
+  background: rgba(231, 76, 60, 0.08);
+  border-color: rgba(231, 76, 60, 0.2);
+}
+
+.insight-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  stroke: currentColor;
+}
+
+.insight-card--green .insight-icon { color: #2e9b66; }
+.insight-card--red   .insight-icon { color: #c0392b; }
+
+.insight-card p {
+  margin: 0;
+}
+
+/* ── Sources Section ────────────────────────────────────────── */
+.sources-section {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 18px;
+  padding: 1.6rem 2rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  margin-bottom: 1.5rem;
+}
+
+.sources-title {
+  margin: 0 0 0.85rem;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.sources-list {
+  margin: 0 0 1.3rem;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sources-list li {
+  font-size: 0.9rem;
+  color: var(--text-content);
+  line-height: 1.6;
+}
+
+.sources-list a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sources-list a:hover {
+  color: var(--text-primary);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .stat-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chart-row--two {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .stat-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .story-hero {
+    padding: 1.5rem 1.2rem;
+  }
+
+  .story-chapter {
+    padding: 1.2rem;
+  }
+
+  .sources-section {
+    padding: 1.2rem;
+  }
+}
+
+/* ── D3 global overrides ────────────────────────────────────── */
+#d3-tooltip strong {
+  color: #9fd2ff;
+}

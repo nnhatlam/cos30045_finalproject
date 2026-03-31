@@ -1,53 +1,238 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Data | Australian Mobile Phone Fines</title>
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="styles/main.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data | Australian Mobile Phone Fines</title>
+  <meta name="description" content="Interactive data visualisations of mobile phone fines across Australian states and territories, broken down by age group, jurisdiction, and detection method.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/data.css">
 </head>
 <body data-page="data">
-	<div id="navbar"></div>
+  <div id="navbar"></div>
 
-	<main>
-		<div class="container">
-			<section class="hero">
-				<h2>Interactive Data View</h2>
-				<p>
-					This page is reserved for visual analytics of illegal mobile phone use while driving.
-				</p>
-				<p>
-					The chart panels below can be connected to your preferred data and charting workflow.
-				</p>
-			</section>
+  <main>
+    <div class="container">
 
-			<h3 class="section-title">Chart Panels</h3>
-			<section class="grid">
-				<article class="card" style="grid-column: span 6;">
-					<h3>Trend by Month</h3>
-					<div class="placeholder-box">Chart Placeholder 1</div>
-				</article>
-				<article class="card" style="grid-column: span 6;">
-					<h3>Demographic Breakdown</h3>
-					<div class="placeholder-box">Chart Placeholder 2</div>
-				</article>
-				<article class="card" style="grid-column: span 6;">
-					<h3>State Comparison</h3>
-					<div class="placeholder-box">Chart Placeholder 3</div>
-				</article>
-				<article class="card" style="grid-column: span 6;">
-					<h3>AI Camera Impact</h3>
-					<div class="placeholder-box">Chart Placeholder 4</div>
-				</article>
-			</section>
-		</div>
-	</main>
+      <!-- ── HERO ── -->
+      <section class="story-hero">
+        <div class="story-hero__tag">Interactive Data Story</div>
+        <h2 class="story-hero__title">Who Gets Caught on Their Phone While Driving?</h2>
+        <p class="story-hero__lead">
+          Australia issues hundreds of thousands of mobile phone fines every year — but the story behind the
+          numbers reveals striking patterns: certain age groups dominate, AI cameras dwarf police detections,
+          and enforcement intensity varies wildly between states.
+        </p>
+        <div class="story-hero__scroll-hint" aria-hidden="true">
+          <span>Scroll to explore</span>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </section>
 
-	<div id="footer"></div>
+      <!-- ── STAT STRIP ── -->
+      <section class="stat-strip" aria-label="Key statistics">
+        <div class="stat-card">
+          <span class="stat-card__value" id="stat-total">228,304</span>
+          <span class="stat-card__label">Fines tracked (sample)</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value">5</span>
+          <span class="stat-card__label">Age groups analysed</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value">8</span>
+          <span class="stat-card__label">Jurisdictions</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value">2</span>
+          <span class="stat-card__label">Detection methods</span>
+        </div>
+      </section>
 
-	<script src="scripts/scripts.js"></script>
+      <!-- ── CHAPTER 1: WHO IS GETTING FINED? ── -->
+      <section class="story-chapter">
+        <div class="chapter-header">
+          <span class="chapter-number">Chapter 1</span>
+          <h3 class="chapter-title">Who Is Getting Fined?</h3>
+          <p class="chapter-body">
+            Drivers aged <strong>26–39</strong> receive the most mobile phone fines — nearly 40% of all
+            recorded incidents — followed closely by the 40–64 age cohort. Surprisingly, the youngest drivers
+            (under 17) account for the fewest fines, suggesting that P-plater restrictions or behaviour may
+            differ from mid-career adults.
+          </p>
+        </div>
+
+        <div class="chart-row chart-row--single">
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Fines by Age Group</h4>
+            <p class="chart-panel__subtitle">Hover each segment for exact counts and share of total</p>
+            <div id="chart-donut" class="chart-host" role="img" aria-label="Donut chart of fines by age group"></div>
+          </div>
+        </div>
+
+        <div class="insight-card">
+          <svg class="insight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <p>
+            <strong>Insight:</strong> The 26–39 and 40–64 age groups together account for approximately
+            <strong>78%</strong> of all fines — highlighting that mid-life working-age Australians are the
+            most frequent offenders, not teenagers.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── CHAPTER 2: BEYOND THE FINE — ARRESTS & CHARGES ── -->
+      <section class="story-chapter story-chapter--alt">
+        <div class="chapter-header">
+          <span class="chapter-number">Chapter 2</span>
+          <h3 class="chapter-title">Beyond the Fine — Arrests &amp; Charges</h3>
+          <p class="chapter-body">
+            A fine is the mildest consequence. For repeat or serious offenders, police can lay charges or
+            make an arrest. The data shows that while charges are relatively common across all adult age
+            groups, arrests remain extremely rare — concentrated in the 26–39 cohort.
+          </p>
+        </div>
+
+        <div class="chart-row chart-row--single">
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Arrests &amp; Charges by Age Group</h4>
+            <p class="chart-panel__subtitle">Grouped bars show volume difference — hover for details</p>
+            <div id="chart-grouped" class="chart-host" role="img" aria-label="Grouped bar chart of arrests and charges"></div>
+          </div>
+        </div>
+
+        <div class="insight-card">
+          <svg class="insight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <p>
+            <strong>Insight:</strong> Charges outnumber arrests by <strong>~40× to 1</strong>. The 26–39 group
+            faces the highest volume in both categories, reinforcing their status as the most heavily enforced cohort.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── CHAPTER 3: CAMERAS VS POLICE ── -->
+      <section class="story-chapter">
+        <div class="chapter-header">
+          <span class="chapter-number">Chapter 3</span>
+          <h3 class="chapter-title">The Rise of Camera Detection</h3>
+          <p class="chapter-body">
+            AI-equipped fixed cameras now issue the overwhelming majority of fines in states where they are
+            deployed. NSW alone generated over <strong>147,000</strong> camera-detected fines, dwarfing its
+            police-issued total. States without camera programmes — like NT, SA, and WA — rely entirely
+            on police.
+          </p>
+        </div>
+
+        <div class="chart-row chart-row--single">
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Camera vs. Police Fines by Jurisdiction</h4>
+            <p class="chart-panel__subtitle">Jurisdictions ordered by total fine volume</p>
+            <div id="chart-detection" class="chart-host" role="img" aria-label="Grouped bar comparing camera and police fines"></div>
+          </div>
+        </div>
+
+        <div class="insight-card insight-card--green">
+          <svg class="insight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+          <p>
+            <strong>Policy note:</strong> ACT has the highest camera:police ratio — <strong>142:1</strong>.
+            NT records zero camera fines, demonstrating significant infrastructure inequality across jurisdictions.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── CHAPTER 4: STATE × AGE BREAKDOWN ── -->
+      <section class="story-chapter story-chapter--alt">
+        <div class="chapter-header">
+          <span class="chapter-number">Chapter 4</span>
+          <h3 class="chapter-title">How Each State Compares by Age</h3>
+          <p class="chapter-body">
+            The stacked chart below reveals that high-volume states like NSW, QLD, and VIC maintain a broadly
+            even cross-age distribution, while smaller jurisdictions like NT and TAS have much lower overall
+            volumes but the same relative age pattern persists.
+          </p>
+        </div>
+
+        <div class="chart-row chart-row--single">
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Fines by Jurisdiction &amp; Age Group (Stacked)</h4>
+            <p class="chart-panel__subtitle">Each colour is one age group — hover bars to drill down</p>
+            <div id="chart-stacked" class="chart-host" role="img" aria-label="Stacked bar of fines by jurisdiction and age group"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── CHAPTER 5: ENFORCEMENT INTENSITY ── -->
+      <section class="story-chapter">
+        <div class="chapter-header">
+          <span class="chapter-number">Chapter 5</span>
+          <h3 class="chapter-title">Enforcement Intensity — Arrests &amp; Charges per Jurisdiction</h3>
+          <p class="chapter-body">
+            Looking beyond raw counts and examining <em>rates</em> paints a nuanced picture: NT carries a
+            dramatically higher charge rate (<strong>23.96%</strong>) — likely reflecting the challenges
+            of policing remote areas where a single incident escalates differently than in urban settings.
+          </p>
+        </div>
+
+        <div class="chart-row chart-row--two">
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Arrest &amp; Charge Rates by Jurisdiction</h4>
+            <p class="chart-panel__subtitle">Percentage of detected incidents that led to arrest or charge</p>
+            <div id="chart-rates" class="chart-host" role="img" aria-label="Horizontal bar chart of enforcement rates"></div>
+          </div>
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Fine Intensity by State &amp; Age (Heatmap)</h4>
+            <p class="chart-panel__subtitle">Darker cells = more fines in that age–state combination</p>
+            <div id="chart-heatmap" class="chart-host" role="img" aria-label="Heatmap of fine intensity by state and age"></div>
+          </div>
+        </div>
+
+        <div class="insight-card insight-card--red">
+          <svg class="insight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M12 9v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <p>
+            <strong>Key finding:</strong> NT's charge rate of <strong>23.96%</strong> is 8× that of WA
+            (17.64%) and vastly higher than eastern states at 0%. This warrants further investigation
+            into enforcement practices and reporting consistency.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── SOURCES ── -->
+      <section class="sources-section">
+        <h3 class="sources-title">Data Sources &amp; Limitations</h3>
+        <ul class="sources-list">
+          <li>Data sourced from the <a href="https://datahub.roadsafety.gov.au/" target="_blank" rel="noopener noreferrer">Australian Road Safety Data Hub</a> (accessed 2025).</li>
+          <li>Sample includes jurisdictions that consented to data sharing — figures may not represent the full national picture.</li>
+          <li>Not all states report camera-detected fines separately; absence of camera data does not confirm absence of camera enforcement.</li>
+          <li>Age-group breakdowns are provided for <em>individual states</em>; state-level "All ages" totals include unclassified records and are excluded from this viz.</li>
+        </ul>
+        <a class="btn btn-secondary" href="policy.html">Read our full Data Policy →</a>
+      </section>
+
+    </div><!-- /container -->
+  </main>
+
+  <div id="footer"></div>
+
+  <!-- D3 v7 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <!-- shared utilities -->
+  <script src="scripts/scripts.js"></script>
+  <!-- D3 chart code -->
+  <script src="scripts/visualisations.js"></script>
 </body>
 </html>
