@@ -142,10 +142,11 @@ async function drawGroupedBar() {
 
   const container = document.getElementById("chart-grouped");
   const W = container.offsetWidth || 480;
-  const H = 300;
-  const margin = {top:24, right:24, bottom:50, left:48};
+  const H = 320;
+  const margin = {top:32, right:24, bottom:54, left:52};
   const iw = W - margin.left - margin.right;
   const ih = H - margin.top  - margin.bottom;
+  const MIN_BAR = 3; // minimum visible px for non-zero bars
 
   const svg = d3.select("#chart-grouped")
     .append("svg").attr("viewBox",`0 0 ${W} ${H}`)
@@ -156,7 +157,7 @@ async function drawGroupedBar() {
   const x0  = d3.scaleBand().domain(AGE_GROUPS).range([0,iw]).padding(0.28);
   const x1  = d3.scaleBand().domain(["arrests","charges"]).rangeRound([0, x0.bandwidth()]).padding(0.08);
   const yMax = d3.max(raw, d => Math.max(d.arrests, d.charges));
-  const y   = d3.scaleLinear().domain([0, yMax*1.12]).range([ih,0]);
+  const y   = d3.scaleLinear().domain([0, yMax*1.18]).range([ih,0]);
 
   // gridlines
   g.append("g").attr("class","grid")
@@ -176,6 +177,7 @@ async function drawGroupedBar() {
   ];
 
   series.forEach(s => {
+    // bars — with minimum height so tiny values are always visible
     g.selectAll(`.bar-${s.key}`)
       .data(raw).enter().append("rect")
       .attr("class", `bar-${s.key}`)
@@ -190,8 +192,38 @@ async function drawGroupedBar() {
       .on("mousemove",(e)   => moveTip(e))
       .on("mouseout", ()    => hideTip())
       .transition().duration(700).delay((_,i) => i*60)
-      .attr("y",      d => y(d[s.key]))
-      .attr("height", d => ih - y(d[s.key]));
+      .attr("y",      d => d[s.key] > 0 ? Math.min(y(d[s.key]), ih - MIN_BAR) : ih)
+      .attr("height", d => d[s.key] > 0 ? Math.max(ih - y(d[s.key]), MIN_BAR) : 0);
+
+    // value labels — always shown above the bar (or baseline) for every non-zero value
+    g.selectAll(`.lbl-${s.key}`)
+      .data(raw).enter().append("text")
+      .attr("class", `lbl-${s.key}`)
+      .attr("text-anchor", "middle")
+      .attr("x",  d => x0(d.age) + x1(s.key) + x1.bandwidth() / 2)
+      .attr("y",  ih)
+      .style("font-size", "0.68rem")
+      .style("font-weight", "600")
+      .style("fill", s.color)
+      .style("opacity", 0)
+      .text(d => d[s.key] > 0 ? d[s.key] : "")
+      .transition().duration(700).delay((_,i) => i*60 + 200)
+      .attr("y",  d => {
+        const barTop = d[s.key] > 0 ? Math.min(y(d[s.key]), ih - MIN_BAR) : ih;
+        return barTop - 5;
+      })
+      .style("opacity", 1);
+  });
+
+  // zero-value annotation for arrests with 0 count
+  raw.filter(d => d.arrests === 0).forEach(d => {
+    g.append("text")
+      .attr("text-anchor", "middle")
+      .attr("x", x0(d.age) + x1("arrests") + x1.bandwidth() / 2)
+      .attr("y", ih - 6)
+      .style("font-size", "0.65rem")
+      .style("fill", "#aaa")
+      .text("0");
   });
 
   // legend
@@ -281,6 +313,23 @@ async function drawStackedBar() {
       .attr("height", d => y(d[0]) - y(d[1]));
   });
 
+  // total labels above each stacked column
+  const topLayer = series[series.length - 1];
+  g.selectAll(".col-total")
+    .data(topLayer).enter().append("text")
+    .attr("class", "col-total")
+    .attr("text-anchor", "middle")
+    .attr("x", d => x(d.data.jurisdiction) + x.bandwidth() / 2)
+    .attr("y", ih)
+    .style("font-size", "0.65rem")
+    .style("font-weight", "700")
+    .style("fill", "#1f5f97")
+    .style("opacity", 0)
+    .text(d => d3.format(".2s")(d[1]))
+    .transition().duration(700).delay((_,j) => j*60 + 300)
+    .attr("y", d => y(d[1]) - 5)
+    .style("opacity", 1);
+
   // legend
   const leg = svg.append("g").attr("transform",`translate(${margin.left},${H-10})`);
   AGE_GROUPS.forEach((a,i) => {
@@ -301,26 +350,49 @@ async function drawDetectionBar() {
     fines: +d["Sum(FINES)"],
   }));
 
-  // build pivot: {jurisdiction, Camera issued, Police issued}
+  // build pivot
   const byJur = d3.group(raw, d => d.jurisdiction);
   const pivoted = [];
   byJur.forEach((rows, j) => {
     const obj = { jurisdiction: j };
     rows.forEach(r => { obj[r.method] = r.fines; });
-    obj["Camera issued"]  = obj["Camera issued"]  || 0;
-    obj["Police issued"]  = obj["Police issued"]  || 0;
+    obj["Camera issued"] = obj["Camera issued"] || 0;
+    obj["Police issued"] = obj["Police issued"] || 0;
     pivoted.push(obj);
   });
   pivoted.sort((a,b) => (b["Camera issued"]+b["Police issued"]) - (a["Camera issued"]+a["Police issued"]));
 
-  const jurs = pivoted.map(d => d.jurisdiction);
+  const jurs    = pivoted.map(d => d.jurisdiction);
+  const methods = ["Camera issued", "Police issued"];
+  const colors  = { "Camera issued": PALETTE.camera, "Police issued": PALETTE.police };
+  const MIN_BAR = 3;
 
   const container = document.getElementById("chart-detection");
   const W = container.offsetWidth || 520;
-  const H = 300;
-  const margin = {top:24, right:24, bottom:50, left:72};
+  const H = 330;
+  const margin = {top:44, right:24, bottom:54, left:72};
   const iw = W - margin.left - margin.right;
   const ih = H - margin.top  - margin.bottom;
+
+  // ── scale toggle (linear / log) ──────────────────────────
+  let useLog = false;
+  const hostEl = document.getElementById("chart-detection");
+
+  // toggle button injected above the SVG
+  const toggleWrap = document.createElement("div");
+  toggleWrap.style.cssText = "display:flex;justify-content:flex-end;margin-bottom:6px;";
+  const toggleBtn = document.createElement("button");
+  toggleBtn.id = "det-scale-toggle";
+  toggleBtn.textContent = "Switch to Log Scale";
+  toggleBtn.style.cssText = [
+    "font-size:0.72rem","font-family:inherit","font-weight:600",
+    "padding:0.25rem 0.65rem","border-radius:999px",
+    "border:1px solid rgba(59,121,181,0.35)",
+    "background:rgba(59,121,181,0.08)","color:#1f5f97",
+    "cursor:pointer","transition:background 0.18s ease"
+  ].join(";");
+  toggleWrap.appendChild(toggleBtn);
+  hostEl.prepend(toggleWrap);
 
   const svg = d3.select("#chart-detection")
     .append("svg").attr("viewBox",`0 0 ${W} ${H}`)
@@ -328,47 +400,108 @@ async function drawDetectionBar() {
 
   const g = svg.append("g").attr("transform",`translate(${margin.left},${margin.top})`);
 
-  const methods = ["Camera issued","Police issued"];
   const x0 = d3.scaleBand().domain(jurs).range([0,iw]).padding(0.28);
   const x1 = d3.scaleBand().domain(methods).rangeRound([0, x0.bandwidth()]).padding(0.06);
-  const yMax = d3.max(pivoted, d => Math.max(d["Camera issued"], d["Police issued"]));
-  const y = d3.scaleLinear().domain([0, yMax*1.12]).range([ih,0]);
 
-  // gridlines
-  g.append("g").attr("class","grid")
-    .call(d3.axisLeft(y).tickSize(-iw).tickFormat(""))
-    .selectAll("line").style("stroke","rgba(0,0,0,0.07)");
-  g.select(".grid .domain").remove();
+  const yMaxLinear = d3.max(pivoted, d => Math.max(d["Camera issued"], d["Police issued"]));
+  const allVals    = pivoted.flatMap(d => methods.map(m => d[m])).filter(v => v > 0);
+  const yMinLog    = d3.min(allVals);
+
+  function makeYScale(log) {
+    return log
+      ? d3.scaleLog().domain([yMinLog * 0.8, yMaxLinear * 1.3]).range([ih, 0]).clamp(true)
+      : d3.scaleLinear().domain([0, yMaxLinear * 1.15]).range([ih, 0]);
+  }
+
+  let y = makeYScale(false);
+
+  // gridlines group — will be re-drawn on toggle
+  const gridGroup = g.append("g").attr("class","grid");
+  const yAxisGroup = g.append("g").attr("class","y-axis");
+
+  function drawGrid() {
+    gridGroup.selectAll("*").remove();
+    gridGroup.call(d3.axisLeft(y).ticks(5).tickSize(-iw).tickFormat(""))
+      .selectAll("line").style("stroke","rgba(0,0,0,0.07)");
+    gridGroup.select(".domain").remove();
+  }
+  function drawYAxis() {
+    yAxisGroup.selectAll("*").remove();
+    yAxisGroup.call(d3.axisLeft(y).ticks(5).tickFormat(d3.format("~s")))
+      .select(".domain").style("stroke","rgba(0,0,0,0.15)");
+  }
+  drawGrid(); drawYAxis();
 
   g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x0).tickSize(0))
     .select(".domain").style("stroke","rgba(0,0,0,0.15)");
-  g.append("g").call(d3.axisLeft(y).ticks(5).tickFormat(d3.format("~s")))
-    .select(".domain").style("stroke","rgba(0,0,0,0.15)");
 
-  const colors = { "Camera issued": PALETTE.camera, "Police issued": PALETTE.police };
-
+  // bars
   methods.forEach(m => {
     g.selectAll(`.bar-det-${m.replace(/\s+/g,"-")}`)
       .data(pivoted).enter().append("rect")
-      .attr("x",     d => x0(d.jurisdiction) + x1(m))
-      .attr("y",     ih)
-      .attr("width", x1.bandwidth())
-      .attr("height",0)
-      .attr("fill",  colors[m])
-      .attr("rx",    4)
+      .attr("class", `bar-det bar-det-${m.replace(/\s+/g,"-")}`)
+      .attr("x",      d => x0(d.jurisdiction) + x1(m))
+      .attr("y",      ih)
+      .attr("width",  x1.bandwidth())
+      .attr("height", 0)
+      .attr("fill",   colors[m])
+      .attr("rx",     4)
       .style("cursor","pointer")
-      .on("mouseover",(e,d) => showTip(`<strong>${d.jurisdiction}</strong><br>${m}: <strong>${d3.format(",")(d[m])}</strong>`,e))
-      .on("mousemove",(e)   => moveTip(e))
-      .on("mouseout", ()    => hideTip())
+      .on("mouseover",(e,d) => showTip(
+        `<strong>${d.jurisdiction}</strong><br>${m}: <strong>${d3.format(",")(d[m])}</strong>`,e))
+      .on("mousemove",(e) => moveTip(e))
+      .on("mouseout", () => hideTip())
       .transition().duration(700).delay((_,i) => i*60)
-      .attr("y",      d => y(d[m]))
-      .attr("height", d => ih - y(d[m]));
+      .attr("y",      d => d[m] > 0 ? Math.min(y(d[m]), ih - MIN_BAR) : ih)
+      .attr("height", d => d[m] > 0 ? Math.max(ih - y(d[m]), MIN_BAR) : 0);
+
+    // value labels above every bar
+    g.selectAll(`.lbl-det-${m.replace(/\s+/g,"-")}`)
+      .data(pivoted).enter().append("text")
+      .attr("class", `lbl-det lbl-det-${m.replace(/\s+/g,"-")}`)
+      .attr("text-anchor", "middle")
+      .attr("x", d => x0(d.jurisdiction) + x1(m) + x1.bandwidth() / 2)
+      .attr("y", ih)
+      .style("font-size", "0.6rem")
+      .style("font-weight", "600")
+      .style("fill", colors[m])
+      .style("opacity", 0)
+      .text(d => d[m] > 0 ? d3.format(".2s")(d[m]) : "")
+      .transition().duration(700).delay((_,i) => i*60 + 250)
+      .attr("y", d => {
+        if (d[m] <= 0) return ih;
+        const barTop = Math.min(y(d[m]), ih - MIN_BAR);
+        return barTop - 4;
+      })
+      .style("opacity", 1);
+  });
+
+  // ── toggle handler — redraw bars & labels with correct scale ──
+  toggleBtn.addEventListener("click", () => {
+    useLog = !useLog;
+    toggleBtn.textContent = useLog ? "Switch to Linear Scale" : "Switch to Log Scale";
+    y = makeYScale(useLog);
+    drawGrid(); drawYAxis();
+
+    methods.forEach(m => {
+      g.selectAll(`.bar-det-${m.replace(/\s+/g,"-")}`)
+        .transition().duration(500)
+        .attr("y",      d => d[m] > 0 ? Math.min(y(d[m]), ih - MIN_BAR) : ih)
+        .attr("height", d => d[m] > 0 ? Math.max(ih - y(d[m]), MIN_BAR) : 0);
+
+      g.selectAll(`.lbl-det-${m.replace(/\s+/g,"-")}`)
+        .transition().duration(500)
+        .attr("y", d => {
+          if (d[m] <= 0) return ih;
+          return Math.min(y(d[m]), ih - MIN_BAR) - 4;
+        });
+    });
   });
 
   // legend
   const leg = svg.append("g").attr("transform",`translate(${margin.left},${H-10})`);
   methods.forEach((m,i) => {
-    const lx = i * 150;
+    const lx = i * 155;
     leg.append("rect").attr("x",lx).attr("y",-10).attr("width",12).attr("height",12).attr("rx",3).attr("fill",colors[m]);
     leg.append("text").attr("x",lx+16).attr("y",0).style("font-size","0.78rem").style("fill","#18222d").text(m);
   });
