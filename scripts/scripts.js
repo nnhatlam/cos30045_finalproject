@@ -44,6 +44,35 @@ function setupMobileMenu() {
   });
 }
 
+function animateCountUp() {
+  const counters = document.querySelectorAll("[data-count]");
+  if (!counters.length) {
+    return;
+  }
+
+  counters.forEach((counter) => {
+    const target = Number(counter.getAttribute("data-count"));
+    if (Number.isNaN(target)) {
+      return;
+    }
+
+    const duration = 1300;
+    const startTime = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const value = Math.floor(target * progress);
+      counter.textContent = value.toLocaleString("en-AU");
+
+      if (progress < 1) {
+        requestAnimationFrame(tick);
+      }
+    };
+
+    requestAnimationFrame(tick);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   await injectComponent("navbar", "components/navbar.html");
   await injectComponent("footer", "components/footer.html");
@@ -54,4 +83,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   setupMobileMenu();
+
+  if (pageName === "index") {
+    animateCountUp();
+  }
 });

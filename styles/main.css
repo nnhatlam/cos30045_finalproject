@@ -152,6 +152,12 @@ main {
   line-height: 1.68;
   margin: 0.6rem 0;
 }
+.caption {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
 
 .button-row {
   margin-top: 1.2rem;
@@ -334,6 +340,35 @@ main {
 
 .cta-card.secondary {
   background: linear-gradient(135deg, #2f72b8, #20558a);
+}
+
+.metric-grid {
+  margin-bottom: 1.3rem;
+}
+
+.metric-card {
+  text-align: left;
+}
+
+.metric-value {
+  font-size: clamp(1.45rem, 2.6vw, 2.05rem);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.why-matters {
+  background: linear-gradient(135deg, rgba(46, 155, 102, 0.14), rgba(112, 194, 145, 0.18));
+  border-color: rgba(46, 155, 102, 0.32);
+}
+
+.why-matters h2 {
+  margin-top: 0;
+  margin-bottom: 0.55rem;
+  color: #1c6f4a;
+}
+
+.why-matters p {
+  margin: 0;
 }
 
 @media (max-width: 900px) {
