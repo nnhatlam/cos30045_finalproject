@@ -112,7 +112,7 @@ a {
 
 .site-nav a:hover,
 .site-nav a.is-active {
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(132, 196, 27, 0.588);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   transform: translateY(-2px);
 }
@@ -285,6 +285,9 @@ main {
 .footer-link {
   color: #9fd2ff;
   text-decoration: none;
+}
+.link{
+  color: #1f5f97;
 }
 
 .footer-link:hover {
