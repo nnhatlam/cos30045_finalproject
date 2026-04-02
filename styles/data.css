@@ -328,3 +328,50 @@
 #d3-tooltip strong {
   color: #9fd2ff;
 }
+
+/* ── New Viz Styles ─────────────────────────────────────────── */
+.waffle-cell {
+  rx: 2px;
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1px;
+}
+
+.chart-grid-multiples {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 800px) {
+  .chart-grid-multiples {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.radar-web {
+  stroke: rgba(0, 0, 0, 0.1);
+  fill: none;
+}
+.radar-axis {
+  stroke: rgba(0, 0, 0, 0.1);
+}
+.radar-area {
+  fill: rgba(59, 121, 181, 0.2);
+  stroke: #3b79b5;
+  stroke-width: 2px;
+}
+.radar-point {
+  fill: #fff;
+  stroke: #3b79b5;
+  stroke-width: 2px;
+}
+
+.map-feature {
+  stroke: #fff;
+  stroke-width: 0.5px;
+  transition: opacity 0.2s;
+}
+.map-feature:hover {
+  opacity: 0.8;
+}
+

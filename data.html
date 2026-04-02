@@ -52,8 +52,8 @@
         <div class="chart-row chart-row--single">
           <div class="chart-panel">
             <h4 class="chart-panel__title">Fines by Age Group</h4>
-            <p class="chart-panel__subtitle">Hover each segment for exact counts and share of total</p>
-            <div id="chart-donut" class="chart-host" role="img" aria-label="Donut chart of fines by age group"></div>
+            <p class="chart-panel__subtitle">Hover each square (1% of fines) for the actual count</p>
+            <div id="chart-waffle" class="chart-host" role="img" aria-label="Waffle chart of fines by age group"></div>
           </div>
         </div>
 
@@ -82,11 +82,14 @@
           </p>
         </div>
 
-        <div class="chart-row chart-row--single">
+        <div class="chart-row chart-row--two">
           <div class="chart-panel">
-            <h4 class="chart-panel__title">Arrests &amp; Charges by Age Group</h4>
-            <p class="chart-panel__subtitle">Grouped bars show volume difference — hover for details</p>
-            <div id="chart-grouped" class="chart-host" role="img" aria-label="Grouped bar chart of arrests and charges"></div>
+            <h4 class="chart-panel__title">Arrests by Age Group</h4>
+            <div id="chart-arrests" class="chart-host" role="img" aria-label="Bar chart of arrests"></div>
+          </div>
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Charges by Age Group</h4>
+            <div id="chart-charges" class="chart-host" role="img" aria-label="Bar chart of charges"></div>
           </div>
         </div>
 
@@ -147,9 +150,9 @@
 
         <div class="chart-row chart-row--single">
           <div class="chart-panel">
-            <h4 class="chart-panel__title">Fines by Jurisdiction &amp; Age Group (Stacked)</h4>
-            <p class="chart-panel__subtitle">Each colour is one age group — hover bars to drill down</p>
-            <div id="chart-stacked" class="chart-host" role="img" aria-label="Stacked bar of fines by jurisdiction and age group"></div>
+            <h4 class="chart-panel__title">Fines by Jurisdiction &amp; Age Group</h4>
+            <p class="chart-panel__subtitle">A state-by-state breakdown showing proportion of fines across age cohorts</p>
+            <div id="chart-pies-matrix" class="chart-grid-multiples" role="img" aria-label="Eight pie charts of age distributions per state"></div>
           </div>
         </div>
       </section>
@@ -168,9 +171,9 @@
 
         <div class="chart-row chart-row--two">
           <div class="chart-panel">
-            <h4 class="chart-panel__title">Arrest &amp; Charge Rates by Jurisdiction</h4>
-            <p class="chart-panel__subtitle">Percentage of detected incidents that led to arrest or charge</p>
-            <div id="chart-rates" class="chart-host" role="img" aria-label="Horizontal bar chart of enforcement rates"></div>
+             <h4 class="chart-panel__title">Arrest &amp; Charge Rates (Choropleth Map)</h4>
+             <p class="chart-panel__subtitle">Hover regions to see enforcement rates</p>
+             <div id="chart-choropleth" class="chart-host" role="img" aria-label="Map showing enforcement intensity by state"></div>
           </div>
           <div class="chart-panel">
             <h4 class="chart-panel__title">Fine Intensity by State &amp; Age (Heatmap)</h4>
@@ -189,6 +192,27 @@
             (17.64%) and vastly higher than eastern states at 0%. This warrants further investigation
             into enforcement practices and reporting consistency.
           </p>
+        </div>
+      </section>
+
+      <!-- ── CHAPTER 6: RADAR CHART ── -->
+      <section class="story-chapter story-chapter--alt">
+        <div class="chapter-header">
+          <span class="chapter-number">Chapter 6</span>
+          <h3 class="chapter-title">The National Footprint</h3>
+          <p class="chapter-body">
+            By visualising the proportion of the nation's total mobile phone driving fines via a single web polygon, 
+            we can instantly spot the massive imbalance in enforcement across the country, showing which 
+            jurisdictions issue the most and the least fines overall.
+          </p>
+        </div>
+
+        <div class="chart-row chart-row--single">
+          <div class="chart-panel">
+            <h4 class="chart-panel__title">Percentage of Total Fines by Jurisdiction</h4>
+            <p class="chart-panel__subtitle">Spider/Radar chart mapped across 8 jurisdictions</p>
+            <div id="chart-radar" class="chart-host" role="img" aria-label="Radar chart of fines percentages by state"></div>
+          </div>
         </div>
       </section>
 
