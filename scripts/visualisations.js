@@ -473,7 +473,7 @@ async function drawChoropleth() {
   grad.append("stop").attr("offset","100%").attr("stop-color", colorScale(maxRate));
   
   leg.append("rect").attr("width", 100).attr("height", 8).attr("rx", 4).attr("fill", `url(#${lgId})`);
-  leg.append("text").attr("x", 0).attr("y", -5).style("font-size", "0.6rem").text("0% (Charge Rate)");
+  leg.append("text").attr("x", 0).attr("y", -5).style("font-size", "0.6rem").text("0%");
   leg.append("text").attr("x", 100).attr("y", -5).attr("text-anchor", "end").style("font-size", "0.6rem").text(`${maxRate}%`);
 }
 
