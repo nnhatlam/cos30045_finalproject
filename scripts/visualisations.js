@@ -555,19 +555,23 @@ async function drawRadarChart() {
   const numAxes = JURISDICTIONS.length;
   const angleSlice = (Math.PI * 2) / numAxes;
   const maxVal = d3.max(radarData, d => d.value) * 1.1; // adding some headroom
-  const rScale = d3.scaleLinear().range([0, radius]).domain([0, maxVal]);
+  
+  // Use scaleSqrt to inflate small states
+  const rScale = d3.scaleSqrt().range([0, radius]).domain([0, maxVal]);
 
   // Background Webs
-  const ticks = [0.2, 0.4, 0.6, 0.8, 1.0];
+  const ticks = [0.05, 0.15, 0.30, 0.45];
   ticks.forEach(t => {
+    if (t > maxVal) return;
+    const r = rScale(t);
     g.append("circle")
       .attr("class", "radar-web")
-      .attr("r", radius * t);
+      .attr("r", r);
       
     g.append("text")
-      .attr("x", 4).attr("y", -(radius * t) + 10)
+      .attr("x", 4).attr("y", -r + 12)
       .style("font-size", "0.6rem").style("fill", "#666")
-      .text(`${(maxVal * t * 100).toFixed(0)}%`);
+      .text(`${(t * 100).toFixed(0)}%`);
   });
 
   // Axes lines
