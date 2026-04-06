@@ -32,23 +32,30 @@ body::after {
   position: fixed;
   z-index: -1;
   border-radius: 50%;
-  filter: blur(6px);
+  filter: blur(8px);
+  animation: floatBG 18s ease-in-out infinite;
+}
+
+@keyframes floatBG {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(15px) scale(1.05); }
 }
 
 body::before {
-  width: 340px;
-  height: 340px;
-  top: -90px;
-  right: -80px;
-  background: radial-gradient(circle, rgba(99, 165, 222, 0.32) 0%, rgba(99, 165, 222, 0) 72%);
+  width: 360px;
+  height: 360px;
+  top: -100px;
+  right: -90px;
+  background: radial-gradient(circle, rgba(99, 165, 222, 0.42) 0%, rgba(99, 165, 222, 0) 72%);
+  animation-delay: -5s;
 }
 
 body::after {
-  width: 320px;
-  height: 320px;
+  width: 340px;
+  height: 340px;
   left: -80px;
   bottom: 20px;
-  background: radial-gradient(circle, rgba(125, 194, 166, 0.26) 0%, rgba(125, 194, 166, 0) 74%);
+  background: radial-gradient(circle, rgba(125, 194, 166, 0.35) 0%, rgba(125, 194, 166, 0) 74%);
 }
 
 img {
@@ -132,12 +139,14 @@ main {
 }
 
 .hero {
-  background: linear-gradient(130deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.42));
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: linear-gradient(130deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.5));
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 22px;
-  box-shadow: var(--shadow);
-  padding: clamp(1.2rem, 2.4vw, 2.3rem);
-  backdrop-filter: blur(11px);
+  box-shadow: 0 16px 42px rgba(16, 49, 89, 0.12);
+  padding: clamp(1.5rem, 2.8vw, 2.6rem);
+  backdrop-filter: blur(14px);
+  position: relative;
+  overflow: hidden;
 }
 
 .hero h2 {
@@ -208,12 +217,18 @@ main {
 
 .card {
   grid-column: span 4;
-  background: var(--white-glass);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 16px;
-  padding: 1.05rem;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(8px);
+  background: var(--white-glass-strong);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: 0 10px 30px rgba(16, 49, 89, 0.1);
+  backdrop-filter: blur(12px);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(16, 49, 89, 0.16);
 }
 
 .card h3 {
@@ -242,12 +257,12 @@ main {
 }
 
 .content-panel {
-  background: var(--white-glass);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 18px;
-  padding: 1.3rem;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(8px);
+  background: var(--white-glass-strong);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 20px;
+  padding: 1.6rem;
+  box-shadow: 0 12px 36px rgba(16, 49, 89, 0.08);
+  backdrop-filter: blur(12px);
 }
 
 .placeholder-box {
@@ -308,38 +323,60 @@ main {
 }
 
 .cta-card {
-  border-radius: 16px;
-  padding: 1.1rem;
+  border-radius: 18px;
+  padding: 1.3rem;
   text-decoration: none;
   color: #ffffff;
-  box-shadow: var(--shadow);
+  box-shadow: 0 8px 24px rgba(8, 30, 58, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(10px);
-  transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.2), transparent);
+  transform: skewX(-20deg);
+  transition: 0.5s ease;
+}
+
+.cta-card:hover::after {
+  left: 150%;
+  transition: left 0.7s ease;
 }
 
 .cta-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 15px 22px rgba(8, 30, 58, 0.22);
-  filter: brightness(1.04);
+  transform: translateY(-6px);
+  box-shadow: 0 18px 34px rgba(8, 30, 58, 0.25);
+  filter: brightness(1.08);
 }
 
 .cta-card h3 {
   margin: 0 0 0.45rem;
+  font-size: 1.15rem;
 }
 
 .cta-card p {
   margin: 0;
   font-size: 0.95rem;
-  line-height: 1.45;
+  line-height: 1.55;
+  opacity: 0.92;
 }
 
 .cta-card.primary {
-  background: linear-gradient(135deg, #2f9e62, #267f4f);
+  background: linear-gradient(135deg, #2e9b66, #1c6d46);
+  box-shadow: 0 10px 28px rgba(46, 155, 102, 0.35);
 }
 
 .cta-card.secondary {
-  background: linear-gradient(135deg, #2f72b8, #20558a);
+  background: linear-gradient(135deg, #2f72b8, #184777);
 }
 
 .metric-grid {
@@ -417,3 +454,19 @@ main {
     grid-column: span 12;
   }
 }
+
+/* ── Scroll Animations ── */
+.fade-in {
+  opacity: 0;
+  transform: translateY(25px);
+  transition: opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.fade-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.delay-1 { transition-delay: 0.1s; }
+.delay-2 { transition-delay: 0.2s; }
+.delay-3 { transition-delay: 0.3s; }

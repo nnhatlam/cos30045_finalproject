@@ -44,33 +44,48 @@ function setupMobileMenu() {
   });
 }
 
-function animateCountUp() {
-  const counters = document.querySelectorAll("[data-count]");
-  if (!counters.length) {
-    return;
-  }
-
-  counters.forEach((counter) => {
-    const target = Number(counter.getAttribute("data-count"));
-    if (Number.isNaN(target)) {
-      return;
-    }
-
-    const duration = 1300;
-    const startTime = performance.now();
-
-    const tick = (now) => {
-      const progress = Math.min((now - startTime) / duration, 1);
-      const value = Math.floor(target * progress);
-      counter.textContent = value.toLocaleString("en-AU");
-
-      if (progress < 1) {
-        requestAnimationFrame(tick);
+function initScrollAnimations() {
+  const io = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      
+      const el = entry.target;
+      
+      // Trigger fade in
+      if (el.classList.contains("fade-in")) {
+        el.classList.add("visible");
+        observer.unobserve(el);
       }
-    };
+      
+      // Trigger counter
+      if (el.hasAttribute("data-count") && !el.classList.contains("counted")) {
+        el.classList.add("counted");
+        animateSingleCounter(el);
+        observer.unobserve(el);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: "0px 0px -50px 0px" });
 
-    requestAnimationFrame(tick);
-  });
+  document.querySelectorAll(".fade-in, [data-count]").forEach(el => io.observe(el));
+}
+
+function animateSingleCounter(counter) {
+  const target = Number(counter.getAttribute("data-count"));
+  if (Number.isNaN(target)) return;
+
+  const duration = 1800;
+  const startTime = performance.now();
+
+  const tick = (now) => {
+    const progress = Math.min((now - startTime) / duration, 1);
+    // easing out
+    const easeProgress = 1 - Math.pow(1 - progress, 3);
+    const value = Math.floor(target * easeProgress);
+    counter.textContent = value.toLocaleString("en-AU");
+
+    if (progress < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -78,13 +93,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await injectComponent("footer", "components/footer.html");
 
   const pageName = document.body.dataset.page;
-  if (pageName) {
-    setActiveNav(pageName);
-  }
-
+  if (pageName) setActiveNav(pageName);
   setupMobileMenu();
-
-  if (pageName === "index") {
-    animateCountUp();
-  }
+  initScrollAnimations();
 });

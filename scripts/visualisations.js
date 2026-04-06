@@ -291,6 +291,26 @@ async function drawStatePies() {
       .attr("text-anchor", "middle").style("font-size", "0.65rem").style("fill", "#44627a")
       .text("Total: " + d3.format(".2s")(total));
   });
+
+  // Render Legend
+  const legendContainer = document.getElementById("chart-pies-legend");
+  if(legendContainer) {
+    legendContainer.innerHTML = "";
+    AGE_GROUPS.forEach((age, i) => {
+      const item = document.createElement("div");
+      item.style.cssText = "display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; color:#18222d;";
+      
+      const box = document.createElement("div");
+      box.style.cssText = `width:12px; height:12px; border-radius:3px; background-color:${PALETTE.ageGroups[i]};`;
+
+      const text = document.createElement("span");
+      text.textContent = age;
+
+      item.appendChild(box);
+      item.appendChild(text);
+      legendContainer.appendChild(item);
+    });
+  }
 }
 
 // ============================================================
