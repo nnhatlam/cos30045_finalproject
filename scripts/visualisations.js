@@ -59,7 +59,26 @@ function hideTip() { tooltip.style("opacity",0); }
 
 
 // ============================================================
-// 1. WAFFLE CHART — Fines by Age Group
+// GLOBAL STATE MANAGER (Cross-Filtering)
+// ============================================================
+const appState = {
+  activeJurisdiction: null,
+  listeners: []
+};
+
+const setGlobalFilter = (jurisdiction) => {
+  // Toggle off if clicking same, otherwise set new
+  appState.activeJurisdiction = appState.activeJurisdiction === jurisdiction ? null : jurisdiction;
+  appState.listeners.forEach(fn => fn(appState.activeJurisdiction));
+};
+
+const subscribeToFilter = (fn) => {
+  appState.listeners.push(fn);
+};
+
+
+// ============================================================
+// 1. WAFFLE CHART — Mobile phone use offences Group
 // ============================================================
 async function drawWaffle() {
   const raw = await d3.csv("data/fines_by_age_group.csv", d => ({
@@ -292,6 +311,17 @@ async function drawStatePies() {
       .text("Total: " + d3.format(".2s")(total));
   });
 
+  // Cross-Filter Subscription
+  subscribeToFilter(activeFilter => {
+    container.querySelectorAll('.state-pie-wrapper').forEach(wrapper => {
+      if (activeFilter && wrapper.dataset.state !== activeFilter) {
+        wrapper.style.opacity = "0.15";
+      } else {
+        wrapper.style.opacity = "1";
+      }
+    });
+  });
+
   // Render Legend
   const legendContainer = document.getElementById("chart-pies-legend");
   if(legendContainer) {
@@ -358,22 +388,67 @@ async function drawDetectionBar() {
   const x0 = d3.scaleBand().domain(jurs).range([0,iw]).padding(0.28);
   const x1 = d3.scaleBand().domain(methods).rangeRound([0, x0.bandwidth()]).padding(0.06);
 
-  const yMax = d3.max(pivoted, d => Math.max(d["Camera issued"], d["Police issued"]));
-  const y = d3.scaleLog().domain([1, yMax * 1.5]).range([ih, 0]).clamp(true);
+  let useLog = true;
+  const btnLog = document.getElementById("btn-scale-log");
+  const btnLin = document.getElementById("btn-scale-lin");
 
-  // gridlines & axes
-  g.append("g").attr("class","grid").call(d3.axisLeft(y).ticks(5).tickSize(-iw).tickFormat(""))
-    .selectAll("line").style("stroke","rgba(0,0,0,0.07)");
-  g.select(".grid .domain").remove();
+  // Insight Calculations
+  const calcRatios = pivoted.map(d => {
+    const cam = d["Camera issued"] || 0;
+    const pol = d["Police issued"] || 0;
+    const total = cam + pol;
+    return {
+      state: d.jurisdiction,
+      ratio: total > 0 ? (cam / total) * 100 : 0
+    };
+  }).sort((a,b) => b.ratio - a.ratio);
   
-  g.append("g").attr("class","y-axis").call(d3.axisLeft(y).ticks(5).tickFormat(d3.format("~s")))
-    .select(".domain").style("stroke","rgba(0,0,0,0.15)");
+  const topState = calcRatios[0];
+  const lowState = calcRatios[calcRatios.length - 1]; // usually NT
+  
+  const insightTextObj = document.getElementById("insight-camera-ratio");
+  if (insightTextObj) {
+    insightTextObj.innerHTML = `<strong>Data Processing Output:</strong> <strong>${topState.state}</strong> leads automated enforcement (<strong>${topState.ratio.toFixed(1)}%</strong> of fines via camera). Conversely, <strong>${lowState.state}</strong> relies least on automation (<strong>${lowState.ratio.toFixed(1)}%</strong>), highlighting a massive structural inequality in how safety policy is enforced physically vs digitally.`;
+  }
+
+  function drawScaleElements() {
+    const yMaxL = d3.max(pivoted, d => Math.max(d["Camera issued"], d["Police issued"]));
+    const yScale = useLog 
+      ? d3.scaleLog().domain([1, yMaxL * 1.5]).range([ih, 0]).clamp(true)
+      : d3.scaleLinear().domain([0, yMaxL * 1.15]).range([ih, 0]);
+
+    // gridlines & axes
+    g.selectAll(".grid").remove();
+    g.selectAll(".y-axis").remove();
+    
+    g.append("g").attr("class","grid").call(d3.axisLeft(yScale).ticks(5).tickSize(-iw).tickFormat(""))
+      .selectAll("line").style("stroke","rgba(0,0,0,0.07)");
+    g.select(".grid .domain").remove();
+    
+    g.append("g").attr("class","y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d3.format("~s")))
+      .select(".domain").style("stroke","rgba(0,0,0,0.15)");
+      
+    return yScale;
+  }
+
+  let y = drawScaleElements();
   g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x0).tickSize(0))
     .select(".domain").style("stroke","rgba(0,0,0,0.15)");
 
   const MIN_BAR = 3;
 
+  const getBarY = (val, yScl) => {
+    if (val <= 0) return ih;
+    return useLog ? Math.min(yScl(Math.max(1, val)), ih - MIN_BAR) : Math.min(yScl(val), ih - MIN_BAR);
+  };
+
+  const getBarH = (val, yScl) => {
+    if (val <= 0) return 0;
+    return useLog ? Math.max(ih - yScl(Math.max(1, val)), MIN_BAR) : Math.max(ih - yScl(val), MIN_BAR);
+  };
+
   methods.forEach(m => {
+    // Bars
     g.selectAll(`.bar-det-${m.replace(/\s+/g,"-")}`)
       .data(pivoted).enter().append("rect")
       .attr("class", `bar-det bar-det-${m.replace(/\s+/g,"-")}`)
@@ -386,21 +461,49 @@ async function drawDetectionBar() {
       .on("mouseover",(e,d) => showTip(`<strong>${d.jurisdiction}</strong><br>${m}: <strong>${d3.format(",")(d[m])}</strong>`,e))
       .on("mousemove", moveTip).on("mouseout", hideTip)
       .transition().duration(700).delay((_,i) => i * 60)
-      .attr("y", d => d[m] > 0 ? Math.min(y(Math.max(1, d[m])), ih - MIN_BAR) : ih)
-      .attr("height", d => d[m] > 0 ? Math.max(ih - y(Math.max(1, d[m])), MIN_BAR) : 0);
+      .attr("y", d => getBarY(d[m], y))
+      .attr("height", d => getBarH(d[m], y));
 
-      g.selectAll(`.lbl-det-${m.replace(/\s+/g,"-")}`)
+    // Labels
+    g.selectAll(`.lbl-det-${m.replace(/\s+/g,"-")}`)
       .data(pivoted).enter().append("text")
+      .attr("class", `lbl-det lbl-det-${m.replace(/\s+/g,"-")}`)
       .attr("text-anchor", "middle")
       .attr("x", d => x0(d.jurisdiction) + x1(m) + x1.bandwidth() / 2)
       .attr("y", ih)
       .style("font-size", "0.60rem").style("font-weight", "600").style("fill", colors[m])
       .text(d => d[m] > 0 ? d3.format(".2s")(d[m]) : "")
       .transition().duration(700).delay((_,i) => i * 60 + 250)
-      .attr("y", d => {
-        if (d[m] <= 0) return ih;
-        return Math.min(y(Math.max(1, d[m])), ih - MIN_BAR) - 4;
+      .attr("y", d => d[m] <= 0 ? ih : getBarY(d[m], y) - 4);
+  });
+
+  // Scale Toggle Events
+  if (btnLog && btnLin) {
+    const updateScale = (isLog) => {
+      useLog = isLog;
+      btnLog.classList.toggle("active", isLog);
+      btnLin.classList.toggle("active", !isLog);
+      
+      const newY = drawScaleElements();
+      methods.forEach(m => {
+        g.selectAll(`.bar-det-${m.replace(/\s+/g,"-")}`)
+          .transition().duration(600)
+          .attr("y", d => getBarY(d[m], newY))
+          .attr("height", d => getBarH(d[m], newY));
+
+        g.selectAll(`.lbl-det-${m.replace(/\s+/g,"-")}`)
+          .transition().duration(600)
+          .attr("y", d => d[m] <= 0 ? ih : getBarY(d[m], newY) - 4);
       });
+    };
+    btnLog.addEventListener("click", () => updateScale(true));
+    btnLin.addEventListener("click", () => updateScale(false));
+  }
+
+  // CROSS-FILTER SUBSCRIBER
+  subscribeToFilter((activeFilter) => {
+    g.selectAll(".bar-det").style("opacity", d => (activeFilter && d.jurisdiction !== activeFilter) ? 0.15 : 1);
+    g.selectAll(".lbl-det").style("opacity", d => (activeFilter && d.jurisdiction !== activeFilter) ? 0.15 : 1);
   });
 
   // legend
@@ -428,10 +531,17 @@ async function drawChoropleth() {
     charges: +d["Charges_rate"],
   }));
   
-  const ratesMap = new Map(raw.map(d => [d.jurisdiction, d.charges])); // Visualize charge rates
-  const maxRate = d3.max(raw, d => d.charges);
-  // Using oranges for charges
-  const colorScale = d3.scaleSequential(d3.interpolateOranges).domain([0, maxRate * 1.2]);
+  let fillMetric = "charges"; // Default metric
+  
+  const ratesMapCharge = new Map(raw.map(d => [d.jurisdiction, d.charges]));
+  const ratesMapArrest = new Map(raw.map(d => [d.jurisdiction, d.arrest]));
+  
+  const maxCharge = d3.max(raw, d => d.charges);
+  const maxArrest = d3.max(raw, d => d.arrest);
+  
+  // Color scales for both modes
+  const colorScaleCharge = d3.scaleSequential(d3.interpolateOranges).domain([0, maxCharge * 1.2]);
+  const colorScaleArrest = d3.scaleSequential(d3.interpolateBlues).domain([0, maxArrest * 1.2]);
 
   let geoData;
   try {
@@ -451,7 +561,6 @@ async function drawChoropleth() {
   const projection = d3.geoMercator().fitSize([W, H], geoData);
   const path = d3.geoPath().projection(projection);
 
-  // Abbreviations mapper: data uses short codes, geojson has full names or codes in PROPERTIES
   const stateCodeMap = {
     "Australian Capital Territory": "ACT",
     "New South Wales": "NSW",
@@ -463,7 +572,12 @@ async function drawChoropleth() {
     "Western Australia": "WA"
   };
 
-  svg.append("g")
+  const getRateAndColor = (code) => {
+    if (fillMetric === "charges") return { rate: ratesMapCharge.get(code) || 0, color: colorScaleCharge };
+    return { rate: ratesMapArrest.get(code) || 0, color: colorScaleArrest };
+  }
+
+  const mapPaths = svg.append("g")
     .selectAll("path")
     .data(geoData.features)
     .enter().append("path")
@@ -472,29 +586,88 @@ async function drawChoropleth() {
     .attr("fill", d => {
       const stateName = d.properties.STATE_NAME;
       const code = stateCodeMap[stateName] || stateName;
-      const rate = ratesMap.get(code) || 0;
-      return colorScale(rate);
-    })
-    .on("mouseover", (e, d) => {
-      const stateName = d.properties.STATE_NAME;
-      const code = stateCodeMap[stateName] || stateName;
-      const chargeRate = ratesMap.get(code) || 0;
-      const arrRate = raw.find(r => r.jurisdiction === code)?.arrest || 0;
-      showTip(`<strong>${stateName} (${code})</strong><br>Charge Rate: <strong>${chargeRate}%</strong><br>Arrest Rate: <strong>${arrRate}%</strong>`, e);
-    })
-    .on("mousemove", moveTip).on("mouseout", hideTip);
+      return getRateAndColor(code).color(getRateAndColor(code).rate);
+    });
 
-  // Simple Legend
+  mapPaths.on("mouseover", (e, d) => {
+    const stateName = d.properties.STATE_NAME;
+    const code = stateCodeMap[stateName] || stateName;
+    const chargeRate = ratesMapCharge.get(code) || 0;
+    const arrRate = ratesMapArrest.get(code) || 0;
+    
+    // Highlight hovered metric
+    const chargeHTML = fillMetric === "charges" ? `<u>Charge Rate: <strong>${chargeRate}%</strong></u>` : `Charge Rate: <strong>${chargeRate}%</strong>`;
+    const arrHTML = fillMetric === "arrest" ? `<u>Arrest Rate: <strong>${arrRate}%</strong></u>` : `Arrest Rate: <strong>${arrRate}%</strong>`;
+    
+    showTip(`<strong>${stateName} (${code})</strong><br>${chargeHTML}<br>${arrHTML}<br><br><em>Click to cross-filter</em>`, e);
+  }).on("mousemove", moveTip).on("mouseout", hideTip)
+  .on("click", (e, d) => {
+    const code = stateCodeMap[d.properties.STATE_NAME] || d.properties.STATE_NAME;
+    setGlobalFilter(code); // Trigger cross-filter
+  }).style("cursor", "pointer");
+
+  // Subscribe Map to Filter
+  subscribeToFilter(activeFilter => {
+    mapPaths.transition().duration(300)
+      .style("opacity", d => {
+        const code = stateCodeMap[d.properties.STATE_NAME] || d.properties.STATE_NAME;
+        return (activeFilter && code !== activeFilter) ? 0.2 : 1;
+      })
+      .style("stroke", d => {
+        const code = stateCodeMap[d.properties.STATE_NAME] || d.properties.STATE_NAME;
+        return (activeFilter && code === activeFilter) ? "#1f2937" : "none";
+      })
+      .style("stroke-width", d => {
+        const code = stateCodeMap[d.properties.STATE_NAME] || d.properties.STATE_NAME;
+        return (activeFilter && code === activeFilter) ? "2px" : "0px";
+      });
+  });
+
+  // Dynamic Legend
   const leg = svg.append("g").attr("transform", `translate(10, ${H-30})`);
   const defs = svg.append("defs");
-  const lgId = "choro-grad";
-  const grad = defs.append("linearGradient").attr("id", lgId);
-  grad.append("stop").attr("offset","0%").attr("stop-color", colorScale(0));
-  grad.append("stop").attr("offset","100%").attr("stop-color", colorScale(maxRate));
   
-  leg.append("rect").attr("width", 100).attr("height", 8).attr("rx", 4).attr("fill", `url(#${lgId})`);
-  leg.append("text").attr("x", 0).attr("y", -5).style("font-size", "0.6rem").text("0%");
-  leg.append("text").attr("x", 100).attr("y", -5).attr("text-anchor", "end").style("font-size", "0.6rem").text(`${maxRate}%`);
+  const gradCharge = defs.append("linearGradient").attr("id", "choro-grad-charge");
+  gradCharge.append("stop").attr("offset","0%").attr("stop-color", colorScaleCharge(0));
+  gradCharge.append("stop").attr("offset","100%").attr("stop-color", colorScaleCharge(maxCharge));
+  
+  const gradArrest = defs.append("linearGradient").attr("id", "choro-grad-arrest");
+  gradArrest.append("stop").attr("offset","0%").attr("stop-color", colorScaleArrest(0));
+  gradArrest.append("stop").attr("offset","100%").attr("stop-color", colorScaleArrest(maxArrest));
+  
+  const legendRect = leg.append("rect").attr("width", 140).attr("height", 8).attr("rx", 4).attr("fill", `url(#choro-grad-charge)`);
+  
+  const legendMin = leg.append("text").attr("x", 0).attr("y", -5).style("font-size", "0.6rem").text("0% (Charge Rate)");
+  const legendMax = leg.append("text").attr("x", 140).attr("y", -5).attr("text-anchor", "end").style("font-size", "0.6rem").text(`${maxCharge}%`);
+
+  // Interactions
+  const btnCharge = document.getElementById("btn-map-charge");
+  const btnArrest = document.getElementById("btn-map-arrest");
+  
+  if (btnCharge && btnArrest) {
+    const swapMapMode = (isCharge) => {
+      if ((isCharge && fillMetric === "charges") || (!isCharge && fillMetric === "arrest")) return;
+      fillMetric = isCharge ? "charges" : "arrest";
+      
+      btnCharge.classList.toggle("active", isCharge);
+      btnArrest.classList.toggle("active", !isCharge);
+      
+      // Animate map color
+      mapPaths.transition().duration(600).attr("fill", d => {
+        const stateName = d.properties.STATE_NAME;
+        const code = stateCodeMap[stateName] || stateName;
+        return getRateAndColor(code).color(getRateAndColor(code).rate);
+      });
+      
+      // Update Legend
+      legendRect.attr("fill", isCharge ? `url(#choro-grad-charge)` : `url(#choro-grad-arrest)`);
+      legendMin.text(`0% (${isCharge ? 'Charge Rate' : 'Arrest Rate'})`);
+      legendMax.text(`${isCharge ? maxCharge : maxArrest}%`);
+    };
+    
+    btnCharge.addEventListener("click", () => swapMapMode(true));
+    btnArrest.addEventListener("click", () => swapMapMode(false));
+  }
 }
 
 // ============================================================
@@ -536,10 +709,24 @@ async function drawHeatmap() {
     .attr("x", d => x(d.jurisdiction)).attr("y", d => y(d.age))
     .attr("width",  x.bandwidth()).attr("height", y.bandwidth())
     .attr("rx", 4).attr("fill","rgba(255,255,255,0)")
-    .on("mouseover",(e,d) => showTip(`<strong>${d.jurisdiction}</strong> — ${d.age}<br>Fines: <strong>${d3.format(",")(d.fines)}</strong>`,e))
-    .on("mousemove", moveTip).on("mouseout", hideTip)
+    .style("cursor", "pointer")
+    .on("click", (e,d) => setGlobalFilter(d.jurisdiction))
+    .on("mouseover", function(e,d) {
+       d3.select(this).style("stroke", "#fff").style("stroke-width", "2");
+       showTip(`<strong>${d.jurisdiction}</strong> — ${d.age}<br>Fines: <strong>${d3.format(",")(d.fines)}</strong>`,e);
+    })
+    .on("mousemove", moveTip).on("mouseout", function() {
+       d3.select(this).style("stroke", "none");
+       hideTip();
+    })
     .transition().duration(800).delay((_,i) => i*20)
     .attr("fill", d => color(d.fines));
+    
+  // Subscribing to filter
+  subscribeToFilter(tf => {
+     g.selectAll("rect.cell").transition().duration(300)
+       .style("opacity", d => (tf && d.jurisdiction !== tf) ? 0.15 : 1);
+  });
 }
 
 // ============================================================
@@ -603,11 +790,35 @@ async function drawRadarChart() {
     .attr("class", "radar-axis");
 
   axes.append("text")
+    .attr("class", "axis-label")
     .attr("text-anchor", "middle")
     .attr("x", (d, i) => rScale(maxVal * 1.25) * Math.cos(angleSlice * i - Math.PI / 2))
     .attr("y", (d, i) => rScale(maxVal * 1.25) * Math.sin(angleSlice * i - Math.PI / 2))
     .style("font-weight", "600").style("font-size", "0.75rem").style("fill", "#062654")
-    .text(d => d);
+    .text(d => d)
+    .on("click", (e, d) => {
+      // Find the data point for this state
+      const targetPoint = radarData.find(x => x.axis === d);
+      if (!targetPoint) return;
+      
+      setGlobalFilter(d);
+             
+      showTip(`<strong>Isolated Footprint</strong><br>${d} handles <strong>${(targetPoint.value * 100).toFixed(2)}%</strong> of national volume.`, e);
+      setTimeout(hideTip, 2500);
+    });
+
+  // Subscribe Radar to Filter
+  subscribeToFilter(activeFilter => {
+    // Dim Unselected Web Points
+    g.selectAll(".radar-point").transition().duration(200)
+      .attr("r", p => (activeFilter && p.axis === activeFilter) ? 8 : (activeFilter ? 2 : 4))
+      .style("opacity", p => (activeFilter && p.axis !== activeFilter) ? 0.3 : 1)
+      .style("fill", p => (activeFilter && p.axis === activeFilter) ? PALETTE.camera : "#fff");
+
+    // Dim Background path slightly as well to focus on point
+    pathGroup.transition().duration(200)
+      .style("fill-opacity", activeFilter ? 0.1 : 0.4);
+  });
 
   // Build polygon
   const radarLine = d3.lineRadial()
@@ -636,6 +847,269 @@ async function drawRadarChart() {
 }
 
 // ============================================================
+// 7. ROAD CRASH - SLOPEGRAPH
+// ============================================================
+async function drawCrashSlopegraph() {
+  const container = document.getElementById("chart-crash-slope");
+  if(!container) return;
+  
+  const raw = await d3.csv("data/rate_roadcrashbystate.csv");
+  const data23 = raw.find(d => d["Calendar year"] === "2023");
+  const data24 = raw.find(d => d["Calendar year"] === "2024");
+  
+  if(!data23 || !data24) return;
+
+  const formatted = JURISDICTIONS.map(state => {
+    return {
+      state: state,
+      v23: +(data23[state] || 0),
+      v24: +(data24[state] || 0)
+    };
+  });
+  
+  const W = container.offsetWidth || 500;
+  const H = 340;
+  const margin = {top:40, right:50, bottom:30, left:50};
+  const iw = W - margin.left - margin.right;
+  const ih = H - margin.top - margin.bottom;
+  
+  const svg = d3.select("#chart-crash-slope").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
+  const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+  
+  const maxV = d3.max(formatted, d => Math.max(d.v23, d.v24));
+  const yScale = d3.scaleLinear().domain([0, maxV * 1.1]).range([ih, 0]);
+  
+  // Gridlines
+  const yAxisGrid = d3.axisLeft(yScale).tickSize(-iw).tickFormat("").ticks(5);
+  g.append("g").attr("class", "y-grid").call(yAxisGrid)
+    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+  g.select(".domain").remove();
+
+  // Axes lines
+  g.append("line").attr("x1", 0).attr("x2", 0).attr("y1",0).attr("y2",ih).style("stroke","rgba(255,255,255,0.2)");
+  g.append("line").attr("x1", iw).attr("x2", iw).attr("y1",0).attr("y2",ih).style("stroke","rgba(255,255,255,0.2)");
+  
+  g.append("text").attr("x", 0).attr("y", -15).attr("text-anchor","middle").style("font-size","0.85rem").style("font-weight","700").style("fill", "#c5d1de").text("2023");
+  g.append("text").attr("x", iw).attr("y", -15).attr("text-anchor","middle").style("font-size","0.85rem").style("font-weight","700").style("fill", "#c5d1de").text("2024");
+  
+  const slopeGroup = g.selectAll(".slope").data(formatted).enter().append("g").attr("class", "slope")
+    .style("cursor", "pointer");
+
+  slopeGroup.append("line")
+    .attr("x1", 0).attr("x2", iw)
+    .attr("y1", d => yScale(d.v23)).attr("y2", d => yScale(d.v24))
+    .style("stroke", d => (d.v24 > d.v23) ? "#f43f5e" : "#10b981") // modern red/green
+    .style("stroke-width", "3").style("opacity", 0.85);
+
+  slopeGroup.append("circle").attr("cx", 0).attr("cy", d => yScale(d.v23)).attr("r", 5).style("fill", d => (d.v24 > d.v23) ? "#f43f5e" : "#10b981");
+  slopeGroup.append("circle").attr("cx", iw).attr("cy", d => yScale(d.v24)).attr("r", 5).style("fill", d => (d.v24 > d.v23) ? "#f43f5e" : "#10b981");
+
+  // Labels
+  slopeGroup.append("text").attr("x", -12).attr("y", d => yScale(d.v23) + 4).attr("text-anchor", "end").style("font-size", "0.65rem").style("fill", "#8e9eb0").text(d => d.state);
+  slopeGroup.append("text").attr("x", iw + 12).attr("y", d => yScale(d.v24) + 4).attr("text-anchor", "start").style("font-size", "0.65rem").style("fill", "#8e9eb0").text(d => `${d.state} (${d.v24})`);
+
+  slopeGroup
+    .on("mouseover", function(e, d) {
+      d3.select(this).selectAll("line").style("stroke-width", "6").style("opacity", 1);
+      const change = ((d.v24 - d.v23)/d.v23 * 100).toFixed(1);
+      showTip(`<strong>${d.state} Benchmark</strong><br>2023 Rate: ${d.v23}<br>2024 Rate: ${d.v24}<br>Trajectory: <span style="color:${d.v24 > d.v23 ? '#f43f5e' : '#10b981'}"><strong>${change > 0 ? '+'+change : change}%</strong></span>`, e);
+    })
+    .on("mousemove", moveTip).on("mouseout", function(e,d) {
+      d3.select(this).selectAll("line").style("stroke-width", appState.activeJurisdiction === d.state ? "6" : "3").style("opacity", appState.activeJurisdiction === d.state ? 1 : 0.85);
+      hideTip();
+    })
+    .on("click", (e,d) => setGlobalFilter(d.state));
+    
+  subscribeToFilter(tf => {
+     slopeGroup.style("opacity", d => (tf && d.state !== tf) ? 0.1 : 1);
+     slopeGroup.selectAll("line").style("stroke-width", d => (tf && d.state === tf) ? "6" : "3");
+  });
+}
+
+// ============================================================
+// 8. ROAD CRASH - AGE BAR (Time Toggle)
+// ============================================================
+async function drawCrashBarChart() {
+  const container = document.getElementById("chart-crash-bar");
+  if(!container) return;
+  
+  const raw = await d3.csv("data/roadcrash_count_by_age_group.csv");
+  const keys = Object.keys(raw[0]);
+  const ageKeys = keys.filter(k => k !== "Calendar year" && k.trim() !== "");
+  
+  const extractData = (yearStr) => {
+    const r = raw.find(d => d["Calendar year"] === yearStr);
+    return ageKeys.map(k => {
+      const cleanAge = k.replace(/\n| /g, " ").replace(/\s+/g," ").trim();
+      return { age: cleanAge, count: +(r[k] || 0) };
+    });
+  };
+  
+  let currentYear = "2024";
+  let dataDisplay = extractData(currentYear);
+  
+  const W = container.offsetWidth || 500;
+  const H = 340;
+  const margin = {top:40, right:20, bottom:60, left:50};
+  const iw = W - margin.left - margin.right;
+  const ih = H - margin.top - margin.bottom;
+  
+  const svg = d3.select("#chart-crash-bar").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
+  const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+  // Defs for premium gradient
+  const defs = svg.append("defs");
+  const grad = defs.append("linearGradient").attr("id", "crashBarGrad").attr("x1", "0%").attr("y1", "0%").attr("x2", "0%").attr("y2", "100%");
+  grad.append("stop").attr("offset", "0%").style("stop-color", "#38bdf8");
+  grad.append("stop").attr("offset", "100%").style("stop-color", "#0284c7");
+  
+  const x = d3.scaleBand().domain(dataDisplay.map(d=>d.age)).range([0, iw]).padding(0.3);
+  const max23 = d3.max(extractData("2023"), d=>d.count);
+  const max24 = d3.max(extractData("2024"), d=>d.count);
+  const y = d3.scaleLinear().domain([0, Math.max(max23, max24) * 1.1]).range([ih, 0]);
+  
+  // Gridlines
+  const yAxisGrid = d3.axisLeft(y).tickSize(-iw).tickFormat("").ticks(5);
+  g.append("g").attr("class", "y-grid").call(yAxisGrid)
+    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+  g.select(".domain").remove();
+
+  g.append("g").attr("transform",`translate(0,${ih})`)
+   .call(d3.axisBottom(x).tickSizeOuter(0))
+   .selectAll("text")
+   .style("font-size", "0.65rem").style("fill", "#c5d1de").style("font-weight", "500")
+   .attr("transform", "translate(-10,10)rotate(-25)")
+   .style("text-anchor", "end");
+   
+  g.append("g").call(d3.axisLeft(y).ticks(5).tickSizeOuter(0))
+   .selectAll("text").style("fill", "#8e9eb0");
+  g.select(".domain").style("stroke","rgba(255,255,255,0.2)");
+  
+  const bars = g.selectAll(".crash-bar").data(dataDisplay).enter().append("rect")
+    .attr("class", "crash-bar")
+    .attr("x", d => x(d.age)).attr("width", x.bandwidth())
+    .attr("y", d => y(d.count)).attr("height", d => ih - y(d.count))
+    .attr("fill", "url(#crashBarGrad)")
+    .attr("rx", 6)
+    .style("cursor", "pointer")
+    .on("mouseover", function(e, d) {
+       d3.select(this).style("filter", "brightness(1.2)");
+       showTip(`<strong>Age ${d.age}</strong><br>Total Incidents: <strong>${d.count}</strong>`, e);
+    })
+    .on("mousemove", moveTip).on("mouseout", function() {
+       d3.select(this).style("filter", "none");
+       hideTip();
+    });
+    
+  const lbls = g.selectAll(".crash-lbl").data(dataDisplay).enter().append("text")
+    .attr("class", "crash-lbl")
+    .attr("x", d => x(d.age) + x.bandwidth()/2).attr("text-anchor", "middle")
+    .attr("y", d => y(d.count) - 5)
+    .style("font-size", "0.65rem").style("font-weight", "bold").style("fill", "#fff")
+    .text(d => d.count);
+
+  const b23 = document.getElementById("btn-crash-23");
+  const b24 = document.getElementById("btn-crash-24");
+  if(b23 && b24) {
+    const updateTime = (yr) => {
+      currentYear = yr;
+      b23.classList.toggle("active", yr==="2023");
+      b24.classList.toggle("active", yr==="2024");
+      
+      const nd = extractData(yr);
+      bars.data(nd)
+        .transition().duration(800).ease(d3.easeCubicOut)
+        .attr("y", d => y(d.count)).attr("height", d => ih - y(d.count));
+        
+      lbls.data(nd)
+        .transition().duration(800).ease(d3.easeCubicOut)
+        .attr("y", d => y(d.count) - 5)
+        .text(d => d.count);
+    };
+    b23.addEventListener("click", () => updateTime("2023"));
+    b24.addEventListener("click", () => updateTime("2024"));
+  }
+}
+
+// ============================================================
+// 9. ROAD CRASH VS FINES SCATTER
+// ============================================================
+async function drawCrashScatter() {
+  const container = document.getElementById("chart-crash-scatter");
+  if(!container) return;
+
+  const crashVol24 = { NSW: 300, VIC: 271, QLD: 273, SA: 81, WA: 171, TAS: 28, NT: 52, ACT: 11 };
+  
+  const finesRaw = await d3.csv("data/grouped_fine_by_jurisdiction_and_detection.csv");
+  const finesByState = JURISDICTIONS.map(st => {
+    const sum = d3.sum(finesRaw.filter(d=>d.JURISDICTION.trim()===st), d => +d["Sum(FINES)"]);
+    return { state: st, fines: sum, crashes: crashVol24[st] || 0 };
+  });
+  
+  const W = container.offsetWidth || 800;
+  const H = 400;
+  const margin = {top:40, right:50, bottom:60, left:80};
+  const iw = W - margin.left - margin.right;
+  const ih = H - margin.top - margin.bottom;
+  
+  const svg = d3.select("#chart-crash-scatter").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
+  const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+  
+  const xMax = d3.max(finesByState, d=>d.fines);
+  const x = d3.scaleLinear().domain([-xMax * 0.08, xMax*1.1]).range([0, iw]);
+  const yMax = d3.max(finesByState, d=>d.crashes);
+  const y = d3.scaleLinear().domain([-yMax * 0.05, yMax*1.1]).range([ih, 0]);
+  
+  // Premium Gridlines
+  const xAxisGrid = d3.axisBottom(x).tickSize(-ih).tickFormat("").ticks(8);
+  const yAxisGrid = d3.axisLeft(y).tickSize(-iw).tickFormat("").ticks(6);
+  g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`).call(xAxisGrid)
+    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+  g.append("g").attr("class", "y-grid").call(yAxisGrid)
+    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+  g.selectAll(".domain").remove();
+  
+  g.append("g").attr("transform",`translate(0,${ih})`)
+   .call(d3.axisBottom(x).ticks(6).tickFormat(d3.format("~s")).tickSizeOuter(0))
+   .selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
+   
+  g.append("g").call(d3.axisLeft(y).ticks(6).tickSizeOuter(0))
+   .selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
+   
+  g.append("text").attr("x", iw/2).attr("y", ih + 45).attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#c5d1de").text("Total Detection Fines Extracted");
+  g.append("text").attr("x", -ih/2).attr("y", -50).attr("transform", "rotate(-90)").attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#c5d1de").text("National Road Crashes (2024)");
+   
+  const bubbleGrp = g.selectAll(".bubble-grp").data(finesByState).enter().append("g")
+    .style("cursor", "pointer")
+    .on("click", (e,d) => setGlobalFilter(d.state))
+    .on("mouseover", function(e,d) {
+       d3.select(this).select("circle").style("stroke-width", "4").style("filter", "brightness(1.5)");
+       showTip(`<strong>${d.state} Synopsis</strong><br>Fines Volume: <strong>${d3.format(",")(d.fines)}</strong><br>Reported Crashes: <strong>${d.crashes}</strong>`, e);
+    })
+    .on("mousemove", moveTip).on("mouseout", function(e,d) {
+       d3.select(this).select("circle").style("stroke-width", appState.activeJurisdiction===d.state?"4":"2").style("filter", "none");
+       hideTip();
+    });
+
+  bubbleGrp.append("circle")
+    .attr("cx", d=>x(d.fines)).attr("cy", d=>y(d.crashes))
+    .attr("r", d => Math.max(10, Math.sqrt(d.crashes)*2.5)) // Size mapped to crash volume footprint
+    .style("fill", "rgba(16, 185, 129, 0.4)")
+    .style("stroke", "#10b981").style("stroke-width", "2");
+    
+  bubbleGrp.append("text")
+    .attr("x", d=>x(d.fines)).attr("y", d=>y(d.crashes)-Math.max(10, Math.sqrt(d.crashes)*2.5)-8)
+    .attr("text-anchor","middle")
+    .style("font-size","0.8rem").style("font-weight","700").style("fill", "#e2e8f0")
+    .text(d=>d.state);
+    
+  subscribeToFilter(tf => {
+    bubbleGrp.style("opacity", d=>(tf && d.state!==tf)?0.1:1);
+    bubbleGrp.selectAll("circle").style("stroke-width", d=>(tf && d.state===tf)?"4":"2");
+  });
+}
+
+// ============================================================
 // Intersection-observer: animate when chart enters viewport
 // ============================================================
 function observeCharts() {
@@ -646,7 +1120,10 @@ function observeCharts() {
     { id: "chart-detection",    fn: drawDetectionBar,     done: false },
     { id: "chart-choropleth",   fn: drawChoropleth,       done: false },
     { id: "chart-heatmap",      fn: drawHeatmap,          done: false },
-    { id: "chart-radar",        fn: drawRadarChart,       done: false }
+    { id: "chart-radar",        fn: drawRadarChart,       done: false },
+    { id: "chart-crash-slope",  fn: drawCrashSlopegraph,  done: false },
+    { id: "chart-crash-bar",    fn: drawCrashBarChart,    done: false },
+    { id: "chart-crash-scatter",fn: drawCrashScatter,     done: false }
   ];
 
   const obs = new IntersectionObserver((entries) => {

@@ -375,3 +375,43 @@
   opacity: 0.8;
 }
 
+/* ── Interactive UI Controls ── */
+.ui-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.ui-btn {
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(59, 121, 181, 0.08);
+  border: 1px solid rgba(59, 121, 181, 0.35);
+  color: #1f5f97;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ui-btn:hover {
+  background: rgba(59, 121, 181, 0.15);
+}
+
+.ui-btn.active {
+  background: #3b79b5;
+  color: #fff;
+  border-color: #3b79b5;
+  box-shadow: 0 4px 10px rgba(59, 121, 181, 0.3);
+}
+
+.axis-label {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.axis-label:hover {
+  opacity: 0.7;
+}
+
