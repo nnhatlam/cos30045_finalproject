@@ -248,25 +248,46 @@
         <div class="chart-row chart-row--two">
           <div class="chart-panel">
             <h4 class="chart-panel__title">Crash Rate Trajectory (2023 - 2024)</h4>
-            <p class="chart-panel__subtitle">State-by-state slopegraph comparing crash rate shifts</p>
+            <p class="chart-panel__subtitle">State-by-state dumbbell plot comparing 2023 and 2024 crash rates. Dashed connectors indicate worsening; solid connectors indicate improvement.</p>
             <div id="chart-crash-slope" class="chart-host" role="img" aria-label="Slopegraph showing crash rate over time"></div>
+            <div class="insight-card" style="margin-top:0.9rem;">
+              <svg class="insight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <p id="insight-crash-slope"><strong>Trajectory insight:</strong> Loading chart insights...</p>
+            </div>
           </div>
           <div class="chart-panel">
             <h4 class="chart-panel__title">Crash Volume by Demographics</h4>
-            <p class="chart-panel__subtitle">Age group comparison</p>
+            <p class="chart-panel__subtitle">Nightingale rose chart of crash counts by age group. Use the year toggle to compare structural shifts across cohorts.</p>
             <div class="ui-controls" aria-label="Year Toggle">
               <button class="ui-btn active" id="btn-crash-23">2023</button>
               <button class="ui-btn" id="btn-crash-24">2024</button>
             </div>
             <div id="chart-crash-bar" class="chart-host" role="img" aria-label="Bar chart of road crashes by age"></div>
+            <div class="insight-card" style="margin-top:0.9rem;">
+              <svg class="insight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <p id="insight-crash-age"><strong>Demographic insight:</strong> Loading chart insights...</p>
+            </div>
           </div>
         </div>
 
         <div class="chart-row chart-row--single">
           <div class="chart-panel" style="position: relative;">
             <h4 class="chart-panel__title">Correlation: Enforcement Vol. vs Road Crashes (2024)</h4>
-            <p class="chart-panel__subtitle">Scatter plot integrating total fines and total crashes per state</p>
+            <p class="chart-panel__subtitle">Bubble scatter with jurisdiction labels, national-average crosshairs, and quadrants to interpret enforcement-risk positioning.</p>
             <div id="chart-crash-scatter" class="chart-host" style="min-height: 350px;" role="img" aria-label="Scatter plot relating fines to crashes"></div>
+            <div class="insight-card" style="margin-top:0.9rem;">
+              <svg class="insight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <p id="insight-crash-scatter"><strong>Correlation insight:</strong> Loading chart insights...</p>
+            </div>
           </div>
         </div>
       </section>

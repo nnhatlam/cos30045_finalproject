@@ -6,20 +6,20 @@
 // ---------- colour palette aligned with CSS variables ----------
 const PALETTE = {
   jurisdictions: {
-    ACT: "#3b79b5",
-    NSW: "#2e9b66",
-    NT:  "#e06b3b",
-    QLD: "#9b59b6",
-    SA:  "#e8b84b",
-    TAS: "#1abc9c",
-    VIC: "#e74c3c",
-    WA:  "#2980b9",
+    ACT: "#0072B2",
+    NSW: "#009E73",
+    NT:  "#D55E00",
+    QLD: "#CC79A7",
+    SA:  "#E69F00",
+    TAS: "#56B4E9",
+    VIC: "#332288",
+    WA:  "#999933",
   },
-  ageGroups: ["#3b79b5","#2e9b66","#e06b3b","#9b59b6","#e8b84b"],
-  camera: "#2e9b66",
-  police: "#3b79b5",
-  arrest: "#e74c3c",
-  charges: "#e06b3b",
+  ageGroups: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#332288"],
+  camera: "#0072B2",
+  police: "#D55E00",
+  arrest: "#CC79A7",
+  charges: "#0072B2",
 };
 
 const JURISDICTIONS = ["ACT","NSW","NT","QLD","SA","TAS","VIC","WA"];
@@ -276,6 +276,8 @@ async function drawStatePies() {
     
     // Create a wrapper div for each pie
     const wrap = document.createElement("div");
+    wrap.className = "state-pie-wrapper";
+    wrap.dataset.state = state;
     wrap.style.textAlign = "center";
     container.appendChild(wrap);
 
@@ -383,6 +385,19 @@ async function drawDetectionBar() {
   const svg = d3.select("#chart-detection")
     .append("svg").attr("viewBox",`0 0 ${W} ${H}`);
 
+  const defs = svg.append("defs");
+  const hatch = defs.append("pattern")
+    .attr("id", "pattern-camera")
+    .attr("patternUnits", "userSpaceOnUse")
+    .attr("width", 8)
+    .attr("height", 8)
+    .attr("patternTransform", "rotate(45)");
+  hatch.append("rect").attr("width", 8).attr("height", 8).attr("fill", PALETTE.camera);
+  hatch.append("line")
+    .attr("x1", 0).attr("y1", 0).attr("x2", 0).attr("y2", 8)
+    .attr("stroke", "rgba(255,255,255,0.55)")
+    .attr("stroke-width", 2);
+
   const g = svg.append("g").attr("transform",`translate(${margin.left},${margin.top})`);
 
   const x0 = d3.scaleBand().domain(jurs).range([0,iw]).padding(0.28);
@@ -456,7 +471,9 @@ async function drawDetectionBar() {
       .attr("y", ih)
       .attr("width", x1.bandwidth())
       .attr("height", 0)
-      .attr("fill", colors[m])
+      .attr("fill", m === "Camera issued" ? "url(#pattern-camera)" : colors[m])
+      .attr("stroke", m === "Camera issued" ? PALETTE.camera : "none")
+      .attr("stroke-width", m === "Camera issued" ? 0.5 : 0)
       .attr("rx", 4)
       .on("mouseover",(e,d) => showTip(`<strong>${d.jurisdiction}</strong><br>${m}: <strong>${d3.format(",")(d[m])}</strong>`,e))
       .on("mousemove", moveTip).on("mouseout", hideTip)
@@ -510,7 +527,11 @@ async function drawDetectionBar() {
   const leg = svg.append("g").attr("transform",`translate(${margin.left},${H-10})`);
   methods.forEach((m,i) => {
     const lx = i * 155;
-    leg.append("rect").attr("x",lx).attr("y",-10).attr("width",12).attr("height",12).attr("rx",3).attr("fill",colors[m]);
+    leg.append("rect")
+      .attr("x",lx).attr("y",-10).attr("width",12).attr("height",12).attr("rx",3)
+      .attr("fill", m === "Camera issued" ? "url(#pattern-camera)" : colors[m])
+      .attr("stroke", m === "Camera issued" ? PALETTE.camera : "none")
+      .attr("stroke-width", m === "Camera issued" ? 0.5 : 0);
     leg.append("text").attr("x",lx+16).attr("y",0).style("font-size","0.78rem").style("fill","#18222d").text(m);
   });
   
@@ -807,7 +828,19 @@ async function drawRadarChart() {
       setTimeout(hideTip, 2500);
     });
 
+  // Build polygon
+  const radarLine = d3.lineRadial()
+    .angle((d,i) => i * angleSlice)
+    .radius(d => rScale(d.value))
+    .curve(d3.curveLinearClosed);
+
   // Subscribe Radar to Filter
+  const pathGroup = g.append("path")
+    .datum(radarData)
+    .attr("class", "radar-area")
+    .attr("d", radarLine)
+    .style("opacity", 0);
+
   subscribeToFilter(activeFilter => {
     // Dim Unselected Web Points
     g.selectAll(".radar-point").transition().duration(200)
@@ -820,17 +853,7 @@ async function drawRadarChart() {
       .style("fill-opacity", activeFilter ? 0.1 : 0.4);
   });
 
-  // Build polygon
-  const radarLine = d3.lineRadial()
-    .angle((d,i) => i * angleSlice)
-    .radius(d => rScale(d.value))
-    .curve(d3.curveLinearClosed);
-
-  g.append("path")
-    .datum(radarData)
-    .attr("class", "radar-area")
-    .attr("d", radarLine)
-    .style("opacity", 0)
+  pathGroup
     .transition().duration(1200)
     .style("opacity", 0.7);
 
@@ -866,6 +889,14 @@ async function drawCrashSlopegraph() {
       v24: +(data24[state] || 0)
     };
   });
+
+  const slopeInsight = document.getElementById("insight-crash-slope");
+  if (slopeInsight) {
+    const deltas = formatted.map(d => ({ state: d.state, change: d.v24 - d.v23, pct: d.v23 > 0 ? ((d.v24 - d.v23) / d.v23) * 100 : 0 }));
+    const worsened = [...deltas].sort((a,b) => b.change - a.change)[0];
+    const improved = [...deltas].sort((a,b) => a.change - b.change)[0];
+    slopeInsight.innerHTML = `<strong>Trajectory insight:</strong> <strong>${worsened.state}</strong> recorded the largest increase (${worsened.change.toFixed(2)}, ${worsened.pct >= 0 ? "+" : ""}${worsened.pct.toFixed(1)}%), while <strong>${improved.state}</strong> showed the biggest reduction (${improved.change.toFixed(2)}, ${improved.pct.toFixed(1)}%).`;
+  }
   
   const W = container.offsetWidth || 500;
   const H = 340;
@@ -913,6 +944,7 @@ async function drawCrashSlopegraph() {
     .attr("x1", d => x(d.v23)).attr("x2", d => x(d.v24))
     .attr("y1", d => y(d.state)).attr("y2", d => y(d.state))
     .style("stroke", d => d.v24 > d.v23 ? "#f43f5e" : "#10b981")
+    .style("stroke-dasharray", d => d.v24 > d.v23 ? "6,3" : "none")
     .style("stroke-width", "4");
     
   // 2023 Dot
@@ -936,9 +968,9 @@ async function drawCrashSlopegraph() {
   svg.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 4).style("fill", "#2e2e2e");
   svg.append("text").attr("x", 30).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2023 Base");
   svg.append("circle").attr("cx", 100).attr("cy", 20).attr("r", 4).style("fill", "#10b981");
-  svg.append("text").attr("x", 110).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Improved");
+  svg.append("text").attr("x", 110).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Improved (solid)");
   svg.append("circle").attr("cx", 200).attr("cy", 20).attr("r", 4).style("fill", "#f43f5e");
-  svg.append("text").attr("x", 210).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Worsened");
+  svg.append("text").attr("x", 210).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Worsened (dashed)");
 
   subscribeToFilter(tf => {
      dumbGrp.style("opacity", d => (tf && d.state !== tf) ? 0.15 : 1);
@@ -964,6 +996,19 @@ async function drawCrashBarChart() {
       return { age: cleanAge, count: +(r[k] || 0) };
     });
   };
+
+  const ageInsight = document.getElementById("insight-crash-age");
+  if (ageInsight) {
+    const data2024 = extractData("2024");
+    const data2023 = extractData("2023");
+    const top24 = [...data2024].sort((a,b) => b.count - a.count)[0];
+    const deltas = data2024.map(d => {
+      const prev = data2023.find(x => x.age === d.age);
+      return { age: d.age, change: d.count - (prev ? prev.count : 0) };
+    });
+    const fastestRising = [...deltas].sort((a,b) => b.change - a.change)[0];
+    ageInsight.innerHTML = `<strong>Demographic insight:</strong> In 2024, <strong>${top24.age}</strong> is the largest crash-volume cohort (${d3.format(",")(top24.count)} incidents). The biggest year-on-year rise appears in <strong>${fastestRising.age}</strong> (${fastestRising.change >= 0 ? "+" : ""}${d3.format(",")(fastestRising.change)}).`;
+  }
   
   let currentYear = "2024";
   let dataDisplay = extractData(currentYear);
@@ -1097,6 +1142,16 @@ async function drawCrashScatter() {
   const meanFines = d3.mean(finesByState, d=>d.fines);
   const meanCrashes = d3.mean(finesByState, d=>d.crashes);
 
+  const scatterInsight = document.getElementById("insight-crash-scatter");
+  if (scatterInsight) {
+    const numerator = d3.sum(finesByState, d => (d.fines - meanFines) * (d.crashes - meanCrashes));
+    const denomX = Math.sqrt(d3.sum(finesByState, d => (d.fines - meanFines) ** 2));
+    const denomY = Math.sqrt(d3.sum(finesByState, d => (d.crashes - meanCrashes) ** 2));
+    const corr = (denomX && denomY) ? numerator / (denomX * denomY) : 0;
+    const riskOutlier = [...finesByState].sort((a,b) => (b.crashes / Math.max(b.fines, 1)) - (a.crashes / Math.max(a.fines, 1)))[0];
+    scatterInsight.innerHTML = `<strong>Correlation insight:</strong> Fine volume and crash volume show a <strong>${corr >= 0 ? "positive" : "negative"}</strong> but <strong>${Math.abs(corr).toFixed(2)}</strong> strength relationship (Pearson r), suggesting enforcement intensity alone does not explain safety outcomes. <strong>${riskOutlier.state}</strong> appears as a high-risk outlier relative to its fine volume.`;
+  }
+
   // Quadrant Backgrounds
   const qGrp = g.append("g").attr("class", "quadrants").style("opacity", 0.12);
   qGrp.append("rect").attr("x", x(meanFines)).attr("y", 0).attr("width", iw - x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#10b981"); // High Fines, High Crashes
@@ -1112,10 +1167,10 @@ async function drawCrashScatter() {
   g.selectAll(".domain").remove();
   
   // Axes
-  g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).ticks(6).tickFormat(d3.format("~s")).tickSizeOuter(0)).selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
-  g.append("g").call(d3.axisLeft(y).ticks(6).tickSizeOuter(0)).selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
-  g.append("text").attr("x", iw/2).attr("y", ih + 45).attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#c5d1de").text("Total Detection Fines Extracted");
-  g.append("text").attr("x", -ih/2).attr("y", -50).attr("transform", "rotate(-90)").attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#c5d1de").text("National Road Crashes (2024)");
+  g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).ticks(6).tickFormat(d3.format("~s")).tickSizeOuter(0)).selectAll("text").style("fill", "#4f6275").style("font-size","0.75rem");
+  g.append("g").call(d3.axisLeft(y).ticks(6).tickSizeOuter(0)).selectAll("text").style("fill", "#4f6275").style("font-size","0.75rem");
+  g.append("text").attr("x", iw/2).attr("y", ih + 45).attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#2e2e2e").text("Total Detection Fines Extracted");
+  g.append("text").attr("x", -ih/2).attr("y", -50).attr("transform", "rotate(-90)").attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#2e2e2e").text("National Road Crashes (2024)");
    
   // National Average Crosshairs
   g.append("line").attr("x1", x(meanFines)).attr("x2", x(meanFines)).attr("y1", 0).attr("y2", ih).style("stroke", "rgba(255,255,255,0.4)").style("stroke-width", "2").style("stroke-dasharray", "4,4");
@@ -1149,7 +1204,7 @@ async function drawCrashScatter() {
   bubbleGrp.append("text")
     .attr("x", d=>x(d.fines)).attr("y", d=>y(d.crashes)-Math.max(10, Math.sqrt(d.crashes)*2.5)-8)
     .attr("text-anchor","middle")
-    .style("font-size","0.85rem").style("font-weight","800").style("fill", "#fbbf24")
+    .style("font-size","0.85rem").style("font-weight","800").style("fill", "#1f2937")
     .text(d=>d.state);
     
   subscribeToFilter(tf => {
