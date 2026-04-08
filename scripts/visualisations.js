@@ -967,10 +967,10 @@ async function drawCrashSlopegraph() {
   // Legend
   svg.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 4).style("fill", "#2e2e2e");
   svg.append("text").attr("x", 30).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2023 Base");
-  svg.append("circle").attr("cx", 100).attr("cy", 20).attr("r", 4).style("fill", "#10b981");
-  svg.append("text").attr("x", 110).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Improved (solid)");
-  svg.append("circle").attr("cx", 200).attr("cy", 20).attr("r", 4).style("fill", "#f43f5e");
-  svg.append("text").attr("x", 210).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Worsened (dashed)");
+svg.append("circle").attr("cx", 110).attr("cy", 20).attr("r", 4).style("fill", "#10b981");
+svg.append("text").attr("x", 120).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Improved (solid)");
+svg.append("circle").attr("cx", 250).attr("cy", 20).attr("r", 4).style("fill", "#f43f5e");
+svg.append("text").attr("x", 260).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Worsened (dashed)");
 
   subscribeToFilter(tf => {
      dumbGrp.style("opacity", d => (tf && d.state !== tf) ? 0.15 : 1);
