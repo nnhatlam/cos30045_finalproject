@@ -887,9 +887,9 @@ async function drawCrashSlopegraph() {
     
   const xAxisObj = d3.axisBottom(x).ticks(5);
   const xAxisG = g.append("g").attr("transform",`translate(0,${ih})`);
-  xAxisG.call(xAxisObj).selectAll("text").style("fill", "#8e9eb0");
+  xAxisG.call(xAxisObj).selectAll("text").style("fill", "#2e2e2e");
   g.append("g").call(d3.axisLeft(y).tickSize(0)).selectAll("text")
-   .style("fill", "#c5d1de").style("font-size", "0.75rem").style("font-weight", "600");
+   .style("fill", "#2e2e2e").style("font-size", "0.75rem").style("font-weight", "600");
   g.selectAll(".domain").style("stroke","rgba(255,255,255,0.2)");
   
   svg.append("defs").append("clipPath").attr("id", "clip-slope").append("rect").attr("width", iw).attr("height", ih + 10).attr("y", -5);
@@ -924,7 +924,7 @@ async function drawCrashSlopegraph() {
   // Zoom & Drag behavior
   const zoom = d3.zoom().scaleExtent([0.5, 5]).extent([[0, 0], [iw, ih]]).on("zoom", (event) => {
     const newX = event.transform.rescaleX(x);
-    xAxisG.call(xAxisObj.scale(newX)).selectAll("text").style("fill", "#8e9eb0");
+    xAxisG.call(xAxisObj.scale(newX)).selectAll("text").style("fill", "#2e2e2e");
     gridG.call(xAxisGrid.scale(newX)).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
     dumbGrp.selectAll(".db-bar").attr("x1", d => newX(d.v23)).attr("x2", d => newX(d.v24));
     dumbGrp.selectAll(".dot-23").attr("cx", d => newX(d.v23));
@@ -933,12 +933,12 @@ async function drawCrashSlopegraph() {
   svg.call(zoom);
 
   // Legend
-  svg.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 4).style("fill", "#cbd5e1");
-  svg.append("text").attr("x", 30).attr("y", 24).style("font-size", "0.7rem").style("fill", "#cbd5e1").text("2023 Base");
+  svg.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 4).style("fill", "#2e2e2e");
+  svg.append("text").attr("x", 30).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2023 Base");
   svg.append("circle").attr("cx", 100).attr("cy", 20).attr("r", 4).style("fill", "#10b981");
-  svg.append("text").attr("x", 110).attr("y", 24).style("font-size", "0.7rem").style("fill", "#cbd5e1").text("2024 Improved");
+  svg.append("text").attr("x", 110).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Improved");
   svg.append("circle").attr("cx", 200).attr("cy", 20).attr("r", 4).style("fill", "#f43f5e");
-  svg.append("text").attr("x", 210).attr("y", 24).style("font-size", "0.7rem").style("fill", "#cbd5e1").text("2024 Worsened");
+  svg.append("text").attr("x", 210).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Worsened");
 
   subscribeToFilter(tf => {
      dumbGrp.style("opacity", d => (tf && d.state !== tf) ? 0.15 : 1);
@@ -1011,7 +1011,7 @@ async function drawCrashBarChart() {
     
   g.selectAll(".ring-lbl").data(ringVals).enter().append("text")
     .attr("y", d => -y(d)).attr("dy", "0.8em").attr("text-anchor", "middle")
-    .style("fill", "rgba(255,255,255,0.4)").style("font-size", "0.6rem")
+    .style("fill", "rgba(255, 255, 255, 0.03)").style("font-size", "0.6rem")
     .text(d => d);
 
   // Age group labels radially outward
@@ -1028,7 +1028,7 @@ async function drawCrashBarChart() {
     });
     
   lbls.append("text")
-    .style("font-size", "0.6rem").style("font-weight", "600").style("fill", "#c5d1de")
+    .style("font-size", "0.6rem").style("font-weight", "600").style("fill", "#414344")
     .text(d => d.age);
 
   const b23 = document.getElementById("btn-crash-23");
@@ -1098,7 +1098,7 @@ async function drawCrashScatter() {
   const meanCrashes = d3.mean(finesByState, d=>d.crashes);
 
   // Quadrant Backgrounds
-  const qGrp = g.append("g").attr("class", "quadrants").style("opacity", 0.05);
+  const qGrp = g.append("g").attr("class", "quadrants").style("opacity", 0.12);
   qGrp.append("rect").attr("x", x(meanFines)).attr("y", 0).attr("width", iw - x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#10b981"); // High Fines, High Crashes
   qGrp.append("rect").attr("x", 0).attr("y", 0).attr("width", x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#f59e0b"); // Low Fines, High Crashes
   qGrp.append("rect").attr("x", x(meanFines)).attr("y", y(meanCrashes)).attr("width", iw - x(meanFines)).attr("height", ih - y(meanCrashes)).attr("fill", "#2e9b66"); // High Fines, Low Crashes
@@ -1107,8 +1107,8 @@ async function drawCrashScatter() {
   // Gridlines
   const xAxisGrid = d3.axisBottom(x).tickSize(-ih).tickFormat("").ticks(8);
   const yAxisGrid = d3.axisLeft(y).tickSize(-iw).tickFormat("").ticks(6);
-  g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`).call(xAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
-  g.append("g").attr("class", "y-grid").call(yAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+  g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`).call(xAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.1)").style("stroke-dasharray", "3,3");
+  g.append("g").attr("class", "y-grid").call(yAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.1)").style("stroke-dasharray", "3,3");
   g.selectAll(".domain").remove();
   
   // Axes
@@ -1122,10 +1122,10 @@ async function drawCrashScatter() {
   g.append("line").attr("x1", 0).attr("x2", iw).attr("y1", y(meanCrashes)).attr("y2", y(meanCrashes)).style("stroke", "rgba(255,255,255,0.4)").style("stroke-width", "2").style("stroke-dasharray", "4,4");
   
   // Quadrant analytical labels
-  g.append("text").attr("x", iw - 10).attr("y", 20).attr("text-anchor", "end").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • HIGH RISK");
-  g.append("text").attr("x", iw - 10).attr("y", ih - 10).attr("text-anchor", "end").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • LOW RISK");
-  g.append("text").attr("x", 20).attr("y", 20).attr("text-anchor", "start").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • HIGH RISK");
-  g.append("text").attr("x", 20).attr("y", ih - 10).attr("text-anchor", "start").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • LOW RISK");
+  g.append("text").attr("x", iw - 10).attr("y", 20).attr("text-anchor", "end").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • HIGH RISK");
+  g.append("text").attr("x", iw - 10).attr("y", ih - 10).attr("text-anchor", "end").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • LOW RISK");
+  g.append("text").attr("x", 20).attr("y", 20).attr("text-anchor", "start").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • HIGH RISK");
+  g.append("text").attr("x", 20).attr("y", ih - 10).attr("text-anchor", "start").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • LOW RISK");
 
   // Plotting data
   const bubbleGrp = g.selectAll(".bubble-grp").data(finesByState).enter().append("g")
