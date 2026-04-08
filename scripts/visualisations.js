@@ -847,7 +847,7 @@ async function drawRadarChart() {
 }
 
 // ============================================================
-// 7. ROAD CRASH - SLOPEGRAPH
+// 7. ROAD CRASH - DUMBBELL PLOT
 // ============================================================
 async function drawCrashSlopegraph() {
   const container = document.getElementById("chart-crash-slope");
@@ -869,65 +869,84 @@ async function drawCrashSlopegraph() {
   
   const W = container.offsetWidth || 500;
   const H = 340;
-  const margin = {top:40, right:50, bottom:30, left:50};
+  const margin = {top:30, right:30, bottom:40, left:60};
   const iw = W - margin.left - margin.right;
   const ih = H - margin.top - margin.bottom;
   
   const svg = d3.select("#chart-crash-slope").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
   const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
   
+  const y = d3.scaleBand().domain(formatted.map(d=>d.state)).range([0, ih]).padding(1);
   const maxV = d3.max(formatted, d => Math.max(d.v23, d.v24));
-  const yScale = d3.scaleLinear().domain([0, maxV * 1.1]).range([ih, 0]);
+  const x = d3.scaleLinear().domain([0, maxV * 1.1]).range([0, iw]);
   
-  // Gridlines
-  const yAxisGrid = d3.axisLeft(yScale).tickSize(-iw).tickFormat("").ticks(5);
-  g.append("g").attr("class", "y-grid").call(yAxisGrid)
-    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
-  g.select(".domain").remove();
-
-  // Axes lines
-  g.append("line").attr("x1", 0).attr("x2", 0).attr("y1",0).attr("y2",ih).style("stroke","rgba(255,255,255,0.2)");
-  g.append("line").attr("x1", iw).attr("x2", iw).attr("y1",0).attr("y2",ih).style("stroke","rgba(255,255,255,0.2)");
+  // Axes & Grid
+  const xAxisGrid = d3.axisBottom(x).tickSize(-ih).ticks(5).tickFormat("");
+  const gridG = g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`);
+  gridG.call(xAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+    
+  const xAxisObj = d3.axisBottom(x).ticks(5);
+  const xAxisG = g.append("g").attr("transform",`translate(0,${ih})`);
+  xAxisG.call(xAxisObj).selectAll("text").style("fill", "#8e9eb0");
+  g.append("g").call(d3.axisLeft(y).tickSize(0)).selectAll("text")
+   .style("fill", "#c5d1de").style("font-size", "0.75rem").style("font-weight", "600");
+  g.selectAll(".domain").style("stroke","rgba(255,255,255,0.2)");
   
-  g.append("text").attr("x", 0).attr("y", -15).attr("text-anchor","middle").style("font-size","0.85rem").style("font-weight","700").style("fill", "#c5d1de").text("2023");
-  g.append("text").attr("x", iw).attr("y", -15).attr("text-anchor","middle").style("font-size","0.85rem").style("font-weight","700").style("fill", "#c5d1de").text("2024");
+  svg.append("defs").append("clipPath").attr("id", "clip-slope").append("rect").attr("width", iw).attr("height", ih + 10).attr("y", -5);
+  const chartArea = g.append("g").attr("clip-path", "url(#clip-slope)");
   
-  const slopeGroup = g.selectAll(".slope").data(formatted).enter().append("g").attr("class", "slope")
-    .style("cursor", "pointer");
-
-  slopeGroup.append("line")
-    .attr("x1", 0).attr("x2", iw)
-    .attr("y1", d => yScale(d.v23)).attr("y2", d => yScale(d.v24))
-    .style("stroke", d => (d.v24 > d.v23) ? "#f43f5e" : "#10b981") // modern red/green
-    .style("stroke-width", "3").style("opacity", 0.85);
-
-  slopeGroup.append("circle").attr("cx", 0).attr("cy", d => yScale(d.v23)).attr("r", 5).style("fill", d => (d.v24 > d.v23) ? "#f43f5e" : "#10b981");
-  slopeGroup.append("circle").attr("cx", iw).attr("cy", d => yScale(d.v24)).attr("r", 5).style("fill", d => (d.v24 > d.v23) ? "#f43f5e" : "#10b981");
-
-  // Labels
-  slopeGroup.append("text").attr("x", -12).attr("y", d => yScale(d.v23) + 4).attr("text-anchor", "end").style("font-size", "0.65rem").style("fill", "#8e9eb0").text(d => d.state);
-  slopeGroup.append("text").attr("x", iw + 12).attr("y", d => yScale(d.v24) + 4).attr("text-anchor", "start").style("font-size", "0.65rem").style("fill", "#8e9eb0").text(d => `${d.state} (${d.v24})`);
-
-  slopeGroup
+  const dumbGrp = chartArea.selectAll(".dumbbell").data(formatted).enter().append("g")
+    .style("cursor", "pointer")
+    .on("click", (e,d) => setGlobalFilter(d.state))
     .on("mouseover", function(e, d) {
-      d3.select(this).selectAll("line").style("stroke-width", "6").style("opacity", 1);
-      const change = ((d.v24 - d.v23)/d.v23 * 100).toFixed(1);
-      showTip(`<strong>${d.state} Benchmark</strong><br>2023 Rate: ${d.v23}<br>2024 Rate: ${d.v24}<br>Trajectory: <span style="color:${d.v24 > d.v23 ? '#f43f5e' : '#10b981'}"><strong>${change > 0 ? '+'+change : change}%</strong></span>`, e);
+       d3.select(this).selectAll("line.db-bar").style("stroke-width", "6").style("filter", "brightness(1.5)");
+       const change = ((d.v24 - d.v23)/d.v23 * 100).toFixed(1);
+       showTip(`<strong>${d.state} Shift</strong><br>2023 Rate: ${d.v23}<br>2024 Rate: ${d.v24}<br>Delta: <span style="color:${d.v24 > d.v23 ? '#f43f5e' : '#10b981'}"><strong>${change > 0 ? '+'+change : change}%</strong></span>`, e);
     })
     .on("mousemove", moveTip).on("mouseout", function(e,d) {
-      d3.select(this).selectAll("line").style("stroke-width", appState.activeJurisdiction === d.state ? "6" : "3").style("opacity", appState.activeJurisdiction === d.state ? 1 : 0.85);
-      hideTip();
-    })
-    .on("click", (e,d) => setGlobalFilter(d.state));
+       d3.select(this).selectAll("line.db-bar").style("stroke-width", "4").style("filter","none");
+       hideTip();
+    });
+
+  // Connecting Bar
+  dumbGrp.append("line").attr("class", "db-bar")
+    .attr("x1", d => x(d.v23)).attr("x2", d => x(d.v24))
+    .attr("y1", d => y(d.state)).attr("y2", d => y(d.state))
+    .style("stroke", d => d.v24 > d.v23 ? "#f43f5e" : "#10b981")
+    .style("stroke-width", "4");
     
+  // 2023 Dot
+  dumbGrp.append("circle").attr("class", "dot-23").attr("cx", d=>x(d.v23)).attr("cy", d=>y(d.state)).attr("r", 5).style("fill", "#cbd5e1");
+  // 2024 Dot
+  dumbGrp.append("circle").attr("class", "dot-24").attr("cx", d=>x(d.v24)).attr("cy", d=>y(d.state)).attr("r", 7).style("fill", d => d.v24 > d.v23 ? "#f43f5e" : "#10b981")
+         .style("stroke", "#1a2333").style("stroke-width", "2");
+
+  // Zoom & Drag behavior
+  const zoom = d3.zoom().scaleExtent([0.5, 5]).extent([[0, 0], [iw, ih]]).on("zoom", (event) => {
+    const newX = event.transform.rescaleX(x);
+    xAxisG.call(xAxisObj.scale(newX)).selectAll("text").style("fill", "#8e9eb0");
+    gridG.call(xAxisGrid.scale(newX)).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+    dumbGrp.selectAll(".db-bar").attr("x1", d => newX(d.v23)).attr("x2", d => newX(d.v24));
+    dumbGrp.selectAll(".dot-23").attr("cx", d => newX(d.v23));
+    dumbGrp.selectAll(".dot-24").attr("cx", d => newX(d.v24));
+  });
+  svg.call(zoom);
+
+  // Legend
+  svg.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 4).style("fill", "#cbd5e1");
+  svg.append("text").attr("x", 30).attr("y", 24).style("font-size", "0.7rem").style("fill", "#cbd5e1").text("2023 Base");
+  svg.append("circle").attr("cx", 100).attr("cy", 20).attr("r", 4).style("fill", "#10b981");
+  svg.append("text").attr("x", 110).attr("y", 24).style("font-size", "0.7rem").style("fill", "#cbd5e1").text("2024 Improved");
+  svg.append("circle").attr("cx", 200).attr("cy", 20).attr("r", 4).style("fill", "#f43f5e");
+  svg.append("text").attr("x", 210).attr("y", 24).style("font-size", "0.7rem").style("fill", "#cbd5e1").text("2024 Worsened");
+
   subscribeToFilter(tf => {
-     slopeGroup.style("opacity", d => (tf && d.state !== tf) ? 0.1 : 1);
-     slopeGroup.selectAll("line").style("stroke-width", d => (tf && d.state === tf) ? "6" : "3");
+     dumbGrp.style("opacity", d => (tf && d.state !== tf) ? 0.15 : 1);
   });
 }
 
 // ============================================================
-// 8. ROAD CRASH - AGE BAR (Time Toggle)
+// 8. NIGHTINGALE ROSE CHART (Polar Chart)
 // ============================================================
 async function drawCrashBarChart() {
   const container = document.getElementById("chart-crash-bar");
@@ -940,7 +959,8 @@ async function drawCrashBarChart() {
   const extractData = (yearStr) => {
     const r = raw.find(d => d["Calendar year"] === yearStr);
     return ageKeys.map(k => {
-      const cleanAge = k.replace(/\n| /g, " ").replace(/\s+/g," ").trim();
+      let cleanAge = k.replace(/\n| /g, " ").replace(/\s+/g," ").trim();
+      cleanAge = cleanAge.replace(/\s+to\s+/, "-");
       return { age: cleanAge, count: +(r[k] || 0) };
     });
   };
@@ -950,89 +970,103 @@ async function drawCrashBarChart() {
   
   const W = container.offsetWidth || 500;
   const H = 340;
-  const margin = {top:40, right:20, bottom:60, left:50};
-  const iw = W - margin.left - margin.right;
-  const ih = H - margin.top - margin.bottom;
+  const margin = 20;
   
   const svg = d3.select("#chart-crash-bar").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
-  const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+  const radius = Math.min(W, H) / 2 - margin;
+  const g = svg.append("g").attr("transform", `translate(${W/2}, ${H/2 + 10})`);
+  
+  const maxVal = d3.max(dataDisplay, d=>d.count) * 1.2;
+  const x = d3.scaleBand().range([0, 2 * Math.PI]).domain(dataDisplay.map(d=>d.age));
+  const y = d3.scaleLinear().range([30, radius]).domain([0, maxVal]); // 30 is inner hole
+  
+  const arcMaker = d3.arc()
+    .innerRadius(30)
+    .outerRadius(d => y(d.count))
+    .startAngle(d => x(d.age))
+    .endAngle(d => x(d.age) + x.bandwidth())
+    .padAngle(0.05)
+    .padRadius(30);
 
-  // Defs for premium gradient
-  const defs = svg.append("defs");
-  const grad = defs.append("linearGradient").attr("id", "crashBarGrad").attr("x1", "0%").attr("y1", "0%").attr("x2", "0%").attr("y2", "100%");
-  grad.append("stop").attr("offset", "0%").style("stop-color", "#38bdf8");
-  grad.append("stop").attr("offset", "100%").style("stop-color", "#0284c7");
-  
-  const x = d3.scaleBand().domain(dataDisplay.map(d=>d.age)).range([0, iw]).padding(0.3);
-  const max23 = d3.max(extractData("2023"), d=>d.count);
-  const max24 = d3.max(extractData("2024"), d=>d.count);
-  const y = d3.scaleLinear().domain([0, Math.max(max23, max24) * 1.1]).range([ih, 0]);
-  
-  // Gridlines
-  const yAxisGrid = d3.axisLeft(y).tickSize(-iw).tickFormat("").ticks(5);
-  g.append("g").attr("class", "y-grid").call(yAxisGrid)
-    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
-  g.select(".domain").remove();
-
-  g.append("g").attr("transform",`translate(0,${ih})`)
-   .call(d3.axisBottom(x).tickSizeOuter(0))
-   .selectAll("text")
-   .style("font-size", "0.65rem").style("fill", "#c5d1de").style("font-weight", "500")
-   .attr("transform", "translate(-10,10)rotate(-25)")
-   .style("text-anchor", "end");
-   
-  g.append("g").call(d3.axisLeft(y).ticks(5).tickSizeOuter(0))
-   .selectAll("text").style("fill", "#8e9eb0");
-  g.select(".domain").style("stroke","rgba(255,255,255,0.2)");
-  
-  const bars = g.selectAll(".crash-bar").data(dataDisplay).enter().append("rect")
-    .attr("class", "crash-bar")
-    .attr("x", d => x(d.age)).attr("width", x.bandwidth())
-    .attr("y", d => y(d.count)).attr("height", d => ih - y(d.count))
-    .attr("fill", "url(#crashBarGrad)")
-    .attr("rx", 6)
+  const petals = g.selectAll("path.petal").data(dataDisplay).enter().append("path")
+    .attr("class", "petal")
+    .attr("fill", (d,i) => PALETTE.ageGroups[i % PALETTE.ageGroups.length])
+    .attr("d", arcMaker)
+    .style("opacity", 0.9)
     .style("cursor", "pointer")
-    .on("mouseover", function(e, d) {
-       d3.select(this).style("filter", "brightness(1.2)");
-       showTip(`<strong>Age ${d.age}</strong><br>Total Incidents: <strong>${d.count}</strong>`, e);
+    .on("mouseover", function(e,d) {
+       d3.select(this).style("opacity", 1).style("stroke", "#fff");
+       showTip(`<strong>Age ${d.age}</strong><br>Incidents: <strong>${d.count}</strong>`, e);
     })
     .on("mousemove", moveTip).on("mouseout", function() {
-       d3.select(this).style("filter", "none");
+       d3.select(this).style("opacity", 0.9).style("stroke", "none");
        hideTip();
     });
+
+  // Circular grid rings
+  const ringVals = y.ticks(4).slice(1);
+  const rings = g.selectAll(".ring").data(ringVals).enter().append("circle")
+    .attr("r", d => y(d))
+    .style("fill", "none").style("stroke", "rgba(255,255,255,0.1)").style("stroke-dasharray", "2,2");
     
-  const lbls = g.selectAll(".crash-lbl").data(dataDisplay).enter().append("text")
-    .attr("class", "crash-lbl")
-    .attr("x", d => x(d.age) + x.bandwidth()/2).attr("text-anchor", "middle")
-    .attr("y", d => y(d.count) - 5)
-    .style("font-size", "0.65rem").style("font-weight", "bold").style("fill", "#fff")
-    .text(d => d.count);
+  g.selectAll(".ring-lbl").data(ringVals).enter().append("text")
+    .attr("y", d => -y(d)).attr("dy", "0.8em").attr("text-anchor", "middle")
+    .style("fill", "rgba(255,255,255,0.4)").style("font-size", "0.6rem")
+    .text(d => d);
+
+  // Age group labels radially outward
+  const lbls = g.selectAll(".petal-lbl").data(dataDisplay).enter().append("g")
+    .attr("class", "petal-lbl")
+    .attr("text-anchor", d => {
+        const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
+        return (a > 90 && a < 270) ? "end" : "start";
+    })
+    .attr("transform", d => {
+        const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
+        const r = y(d.count) + 10;
+        return `rotate(${a}) translate(${r},0) ${a > 90 && a < 270 ? "rotate(180)" : ""}`;
+    });
+    
+  lbls.append("text")
+    .style("font-size", "0.6rem").style("font-weight", "600").style("fill", "#c5d1de")
+    .text(d => d.age);
 
   const b23 = document.getElementById("btn-crash-23");
   const b24 = document.getElementById("btn-crash-24");
   if(b23 && b24) {
-    const updateTime = (yr) => {
-      currentYear = yr;
-      b23.classList.toggle("active", yr==="2023");
-      b24.classList.toggle("active", yr==="2024");
-      
-      const nd = extractData(yr);
-      bars.data(nd)
-        .transition().duration(800).ease(d3.easeCubicOut)
-        .attr("y", d => y(d.count)).attr("height", d => ih - y(d.count));
-        
-      lbls.data(nd)
-        .transition().duration(800).ease(d3.easeCubicOut)
-        .attr("y", d => y(d.count) - 5)
-        .text(d => d.count);
-    };
-    b23.addEventListener("click", () => updateTime("2023"));
-    b24.addEventListener("click", () => updateTime("2024"));
+    b23.addEventListener("click", () => {
+      b23.classList.add("active"); b24.classList.remove("active");
+      const nd = extractData("2023");
+      petals.data(nd).transition().duration(800).ease(d3.easeElasticOut).attr("d", arcMaker);
+      lbls.data(nd).transition().duration(800).ease(d3.easeElasticOut)
+        .attr("text-anchor", d => {
+          const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
+          return (a > 90 && a < 270) ? "end" : "start";
+        })
+        .attr("transform", d => {
+          const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
+          return `rotate(${a}) translate(${y(d.count) + 10},0) ${a > 90 && a < 270 ? "rotate(180)" : ""}`;
+        });
+    });
+    b24.addEventListener("click", () => {
+      b24.classList.add("active"); b23.classList.remove("active");
+      const nd = extractData("2024");
+      petals.data(nd).transition().duration(800).ease(d3.easeElasticOut).attr("d", arcMaker);
+      lbls.data(nd).transition().duration(800).ease(d3.easeElasticOut)
+        .attr("text-anchor", d => {
+          const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
+          return (a > 90 && a < 270) ? "end" : "start";
+        })
+        .attr("transform", d => {
+          const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
+          return `rotate(${a}) translate(${y(d.count) + 10},0) ${a > 90 && a < 270 ? "rotate(180)" : ""}`;
+        });
+    });
   }
 }
 
 // ============================================================
-// 9. ROAD CRASH VS FINES SCATTER
+// 9. MAGIC QUADRANT: ROAD CRASH VS FINES SCATTER
 // ============================================================
 async function drawCrashScatter() {
   const container = document.getElementById("chart-crash-scatter");
@@ -1060,31 +1094,46 @@ async function drawCrashScatter() {
   const yMax = d3.max(finesByState, d=>d.crashes);
   const y = d3.scaleLinear().domain([-yMax * 0.05, yMax*1.1]).range([ih, 0]);
   
-  // Premium Gridlines
+  const meanFines = d3.mean(finesByState, d=>d.fines);
+  const meanCrashes = d3.mean(finesByState, d=>d.crashes);
+
+  // Quadrant Backgrounds
+  const qGrp = g.append("g").attr("class", "quadrants").style("opacity", 0.05);
+  qGrp.append("rect").attr("x", x(meanFines)).attr("y", 0).attr("width", iw - x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#10b981"); // High Fines, High Crashes
+  qGrp.append("rect").attr("x", 0).attr("y", 0).attr("width", x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#f59e0b"); // Low Fines, High Crashes
+  qGrp.append("rect").attr("x", x(meanFines)).attr("y", y(meanCrashes)).attr("width", iw - x(meanFines)).attr("height", ih - y(meanCrashes)).attr("fill", "#2e9b66"); // High Fines, Low Crashes
+  qGrp.append("rect").attr("x", 0).attr("y", y(meanCrashes)).attr("width", x(meanFines)).attr("height", ih - y(meanCrashes)).attr("fill", "#38bdf8"); // Low Fines, Low Crashes
+
+  // Gridlines
   const xAxisGrid = d3.axisBottom(x).tickSize(-ih).tickFormat("").ticks(8);
   const yAxisGrid = d3.axisLeft(y).tickSize(-iw).tickFormat("").ticks(6);
-  g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`).call(xAxisGrid)
-    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
-  g.append("g").attr("class", "y-grid").call(yAxisGrid)
-    .selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+  g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`).call(xAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
+  g.append("g").attr("class", "y-grid").call(yAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
   g.selectAll(".domain").remove();
   
-  g.append("g").attr("transform",`translate(0,${ih})`)
-   .call(d3.axisBottom(x).ticks(6).tickFormat(d3.format("~s")).tickSizeOuter(0))
-   .selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
-   
-  g.append("g").call(d3.axisLeft(y).ticks(6).tickSizeOuter(0))
-   .selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
-   
+  // Axes
+  g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).ticks(6).tickFormat(d3.format("~s")).tickSizeOuter(0)).selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
+  g.append("g").call(d3.axisLeft(y).ticks(6).tickSizeOuter(0)).selectAll("text").style("fill", "#8e9eb0").style("font-size","0.75rem");
   g.append("text").attr("x", iw/2).attr("y", ih + 45).attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#c5d1de").text("Total Detection Fines Extracted");
   g.append("text").attr("x", -ih/2).attr("y", -50).attr("transform", "rotate(-90)").attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#c5d1de").text("National Road Crashes (2024)");
    
+  // National Average Crosshairs
+  g.append("line").attr("x1", x(meanFines)).attr("x2", x(meanFines)).attr("y1", 0).attr("y2", ih).style("stroke", "rgba(255,255,255,0.4)").style("stroke-width", "2").style("stroke-dasharray", "4,4");
+  g.append("line").attr("x1", 0).attr("x2", iw).attr("y1", y(meanCrashes)).attr("y2", y(meanCrashes)).style("stroke", "rgba(255,255,255,0.4)").style("stroke-width", "2").style("stroke-dasharray", "4,4");
+  
+  // Quadrant analytical labels
+  g.append("text").attr("x", iw - 10).attr("y", 20).attr("text-anchor", "end").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • HIGH RISK");
+  g.append("text").attr("x", iw - 10).attr("y", ih - 10).attr("text-anchor", "end").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • LOW RISK");
+  g.append("text").attr("x", 20).attr("y", 20).attr("text-anchor", "start").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • HIGH RISK");
+  g.append("text").attr("x", 20).attr("y", ih - 10).attr("text-anchor", "start").style("fill", "rgba(255,255,255,0.3)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • LOW RISK");
+
+  // Plotting data
   const bubbleGrp = g.selectAll(".bubble-grp").data(finesByState).enter().append("g")
     .style("cursor", "pointer")
     .on("click", (e,d) => setGlobalFilter(d.state))
     .on("mouseover", function(e,d) {
        d3.select(this).select("circle").style("stroke-width", "4").style("filter", "brightness(1.5)");
-       showTip(`<strong>${d.state} Synopsis</strong><br>Fines Volume: <strong>${d3.format(",")(d.fines)}</strong><br>Reported Crashes: <strong>${d.crashes}</strong>`, e);
+       showTip(`<strong>${d.state} Synopsis</strong><br>Fines Volume: <strong>${d3.format(",")(d.fines)}</strong><br>Reported Crashes: <strong>${d.crashes}</strong><br><em>${d.fines > meanFines ? "Above" : "Below"} Nat. Avg Fines<br>${d.crashes > meanCrashes ? "Above" : "Below"} Nat. Avg Crashes</em>`, e);
     })
     .on("mousemove", moveTip).on("mouseout", function(e,d) {
        d3.select(this).select("circle").style("stroke-width", appState.activeJurisdiction===d.state?"4":"2").style("filter", "none");
@@ -1093,14 +1142,14 @@ async function drawCrashScatter() {
 
   bubbleGrp.append("circle")
     .attr("cx", d=>x(d.fines)).attr("cy", d=>y(d.crashes))
-    .attr("r", d => Math.max(10, Math.sqrt(d.crashes)*2.5)) // Size mapped to crash volume footprint
-    .style("fill", "rgba(16, 185, 129, 0.4)")
-    .style("stroke", "#10b981").style("stroke-width", "2");
+    .attr("r", d => Math.max(10, Math.sqrt(d.crashes)*2.5)) 
+    .style("fill", d => (PALETTE.jurisdictions[d.state] || "#10b981") + "66")
+    .style("stroke", d => PALETTE.jurisdictions[d.state] || "#10b981").style("stroke-width", "2");
     
   bubbleGrp.append("text")
     .attr("x", d=>x(d.fines)).attr("y", d=>y(d.crashes)-Math.max(10, Math.sqrt(d.crashes)*2.5)-8)
     .attr("text-anchor","middle")
-    .style("font-size","0.8rem").style("font-weight","700").style("fill", "#e2e8f0")
+    .style("font-size","0.85rem").style("font-weight","800").style("fill", "#fbbf24")
     .text(d=>d.state);
     
   subscribeToFilter(tf => {
