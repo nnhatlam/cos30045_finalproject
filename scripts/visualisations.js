@@ -1,10 +1,20 @@
 // ============================================================
 // visualisations.js — D3 interactive charts for data.html
 // Australian Mobile Phone Fines — COS30045 Final Project
+//
+// This file contains nine D3-based visualisations plus a shared
+// tooltip, a global cross-filter state manager, and an
+// Intersection Observer that lazy-loads each chart when it
+// scrolls into view.
 // ============================================================
 
-// ---------- colour palette aligned with CSS variables ----------
+
+// =============================================================
+// COLOUR PALETTE — aligned with CSS custom properties
+// Uses colour-blind-safe palette (Okabe-Ito inspired).
+// =============================================================
 const PALETTE = {
+  // One colour per Australian state / territory
   jurisdictions: {
     ACT: "#0072B2",
     NSW: "#009E73",
@@ -15,23 +25,32 @@ const PALETTE = {
     VIC: "#332288",
     WA:  "#999933",
   },
+  // Sequential colours applied to each age-group bucket
   ageGroups: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#332288"],
+  // Detection-method accent colours
   camera: "#0072B2",
   police: "#D55E00",
+  // Arrest & charge accent colours
   arrest: "#CC79A7",
   charges: "#0072B2",
 };
 
+// Canonical ordering used across every chart that has jurisdiction / age axes
 const JURISDICTIONS = ["ACT","NSW","NT","QLD","SA","TAS","VIC","WA"];
 const AGE_GROUPS    = ["0-16","17-25","26-39","40-64","65 and over"];
 
-// ---------- shared tooltip ----------
+
+// =============================================================
+// SHARED TOOLTIP
+// A single <div> appended to <body>, reused by every chart.
+// position: fixed so it tracks the cursor even during scroll.
+// =============================================================
 const tooltip = d3.select("body")
   .append("div")
   .attr("id", "d3-tooltip")
   .style("position","fixed")
-  .style("pointer-events","none")
-  .style("background","rgba(6,38,84,0.92)")
+  .style("pointer-events","none")            // never intercept mouse events
+  .style("background","rgba(6,38,84,0.92)")  // dark translucent navy
   .style("color","#edf4ff")
   .style("border","1px solid rgba(255,255,255,0.18)")
   .style("border-radius","10px")
@@ -41,91 +60,131 @@ const tooltip = d3.select("body")
   .style("box-shadow","0 8px 24px rgba(0,0,0,0.3)")
   .style("backdrop-filter","blur(8px)")
   .style("z-index","9999")
-  .style("opacity",0)
+  .style("opacity",0)                        // hidden by default
   .style("transition","opacity 0.18s ease");
 
+/**
+ * Show the tooltip with the given HTML content near the cursor.
+ * @param {string} html  Inner HTML for the tooltip
+ * @param {Event}  event Mouse event used for positioning
+ */
 function showTip(html, event) {
   tooltip.html(html).style("opacity",1);
   moveTip(event);
 }
+
+/**
+ * Reposition the tooltip so it stays within the viewport.
+ * If the tooltip would overflow the right/bottom edge,
+ * it flips to the left/top of the cursor instead.
+ */
 function moveTip(event) {
   const x = event.clientX, y = event.clientY;
+  // Approximate tooltip dimensions for edge-detection
   const tw = 220, th = 80;
   const left = x + 14 + tw > window.innerWidth  ? x - tw - 10 : x + 14;
   const top  = y + 14 + th > window.innerHeight ? y - th - 10 : y + 14;
   tooltip.style("left", left+"px").style("top", top+"px");
 }
+
+/** Hide the tooltip by fading opacity to 0. */
 function hideTip() { tooltip.style("opacity",0); }
 
 
 // ============================================================
-// GLOBAL STATE MANAGER (Cross-Filtering)
+// GLOBAL STATE MANAGER — Cross-Filtering
+//
+// Clicking a jurisdiction in ANY chart sets the global filter.
+// All other charts dim non-matching elements via subscribers.
+// Clicking the same jurisdiction again toggles the filter off.
 // ============================================================
 const appState = {
-  activeJurisdiction: null,
-  listeners: []
+  activeJurisdiction: null,   // currently filtered jurisdiction or null
+  listeners: []               // array of callback functions
 };
 
+/**
+ * Toggle the global jurisdiction filter.
+ * If the user clicks the same state twice, the filter is cleared.
+ * After updating state, every registered listener is notified.
+ */
 const setGlobalFilter = (jurisdiction) => {
-  // Toggle off if clicking same, otherwise set new
   appState.activeJurisdiction = appState.activeJurisdiction === jurisdiction ? null : jurisdiction;
+  // Notify every chart that has subscribed
   appState.listeners.forEach(fn => fn(appState.activeJurisdiction));
 };
 
+/**
+ * Register a callback to be invoked whenever the filter changes.
+ * @param {Function} fn  Receives the new activeJurisdiction (string|null)
+ */
 const subscribeToFilter = (fn) => {
   appState.listeners.push(fn);
 };
 
 
 // ============================================================
-// 1. WAFFLE CHART — Mobile phone use offences Group
+// 1. WAFFLE CHART — Offences by Age Group
+//
+// Each square in a 20×10 grid represents ~0.5 % of total fines.
+// The "Largest Remainder Method" is used to distribute 200
+// squares among five age groups so that rounding errors do not
+// leave any squares unassigned.
 // ============================================================
 async function drawWaffle() {
+  // --- Data loading & parsing ---
   const raw = await d3.csv("data/fines_by_age_group.csv", d => ({
     age: d["AGE_GROUP"].trim(),
     fines: +d["Sum(FINES)"],
   }));
 
-  // Re-group minority ages: 0-16 is tiny. We will show them all but calculate squares based on proportion.
   const totalFines = d3.sum(raw, d => d.fines);
   
-  // Waffle parameters: 10x10 grid = 100 squares total
-  const cols = 20; 
-  const rows = 10;
-  const totalSquares = cols * rows;
+  // --- Waffle grid parameters ---
+  const cols = 20;               // columns in the waffle grid
+  const rows = 10;               // rows in the waffle grid
+  const totalSquares = cols * rows;  // 200 squares
   
-  // Calculate squares per category using Largest Remainder Method to ensure exact total
+  // --- Largest Remainder Method ---
+  // Step 1: assign floor(proportional squares) to each category
   let waffleData = [];
   let remainingDecimals = [];
   let currentSquares = 0;
 
   raw.forEach((d, i) => {
-    let exact = (d.fines / totalFines) * totalSquares;
-    let intSqs = Math.floor(exact);
-    let remainder = exact - intSqs;
+    let exact = (d.fines / totalFines) * totalSquares; // fractional share
+    let intSqs = Math.floor(exact);                    // integer share
+    let remainder = exact - intSqs;                    // leftover fraction
     waffleData.push({ ...d, intSqs, finalSqs: intSqs, color: PALETTE.ageGroups[i] });
     currentSquares += intSqs;
     remainingDecimals.push({ index: i, remainder });
   });
 
-  // Distribute remaining squares to categories with largest remainders
+  // Step 2: distribute leftover squares to categories with the
+  //         largest remainders until we reach exactly 200
   remainingDecimals.sort((a,b) => b.remainder - a.remainder);
   for(let i=0; i < (totalSquares - currentSquares); i++) {
     waffleData[remainingDecimals[i].index].finalSqs += 1;
   }
 
-  // Create an array mapping each 1 of the 200 squares to a category
+  // Step 3: flatten into an array of 200 individual square objects
   let squareArray = [];
   waffleData.forEach(d => {
     for(let k=0; k < d.finalSqs; k++){
-      squareArray.push({ age: d.age, fines: d.fines, color: d.color, share: d.finalSqs / totalSquares });
+      squareArray.push({
+        age: d.age,
+        fines: d.fines,
+        color: d.color,
+        share: d.finalSqs / totalSquares  // proportion for tooltip
+      });
     }
   });
 
+  // --- SVG setup ---
   const container = document.getElementById("chart-waffle");
   const W = container.offsetWidth || 500;
   const H = 250;
-  const padding = 2;
+  const padding = 2;                                     // gap between cells
   const cellSize = Math.min((W - 120) / cols, H / rows) - padding;
 
   const svg = d3.select("#chart-waffle")
@@ -134,19 +193,21 @@ async function drawWaffle() {
 
   const g = svg.append("g").attr("transform",`translate(10, 10)`);
 
-  // Draw squares
+  // --- Draw waffle squares ---
+  // Each square is positioned in a column-major layout
   g.selectAll("rect")
     .data(squareArray)
     .enter()
     .append("rect")
     .attr("class", "waffle-cell")
-    .attr("x", (d,i) => (i % cols) * (cellSize + padding))
-    .attr("y", (d,i) => Math.floor(i / cols) * (cellSize + padding))
+    .attr("x", (d,i) => (i % cols) * (cellSize + padding))        // column position
+    .attr("y", (d,i) => Math.floor(i / cols) * (cellSize + padding)) // row position
     .attr("width", cellSize)
     .attr("height", cellSize)
     .attr("fill", d => d.color)
-    .attr("opacity", 0)
+    .attr("opacity", 0)            // start invisible for entrance animation
     .style("cursor", "pointer")
+    // --- Tooltip interactions ---
     .on("mouseover", function(event, d) {
       d3.select(this).attr("stroke", "#fff").attr("stroke-width", 2);
       showTip(`<strong>${d.age}</strong><br>${d3.format(",")(d.fines)} fines<br>${(d.share*100).toFixed(1)}% of total`, event);
@@ -156,10 +217,11 @@ async function drawWaffle() {
       d3.select(this).attr("stroke", "rgba(255,255,255,0.2)").attr("stroke-width", 1);
       hideTip();
     })
+    // Staggered fade-in animation
     .transition().duration(500).delay((d,i) => i * 4)
     .attr("opacity", 1);
 
-  // Legend
+  // --- Legend (right side of waffle) ---
   const legend = svg.append("g").attr("transform",`translate(${(cols * (cellSize + padding)) + 25}, 20)`);
   waffleData.forEach((d,i) => {
     const row = legend.append("g").attr("transform",`translate(0,${i*28})`);
@@ -173,36 +235,50 @@ async function drawWaffle() {
 
 // ============================================================
 // 2. TWO BAR CHARTS — Arrests & Charges by Age Group
+//
+// Renders two side-by-side bar charts from the same CSV.
+// A shared helper `renderBar` handles both.
 // ============================================================
 async function drawArrestChargeBars() {
+  // --- Load & parse data ---
   const raw = await d3.csv("data/grouped_charges_and_arrest_by_age_group.csv", d => ({
     age:     d["AGE_GROUP"].trim(),
     arrests: +d["Sum(ARRESTS)"],
     charges: +d["Sum(CHARGES)"],
   }));
 
+  /**
+   * Generic bar-chart renderer.
+   * @param {string} containerId  DOM id of the chart host element
+   * @param {string} dataKey      Property name in `raw` to plot ("arrests" or "charges")
+   * @param {string} color        Fill colour for the bars
+   * @param {string} labelText    Human-readable label for tooltips
+   */
   function renderBar(containerId, dataKey, color, labelText) {
     const container = document.getElementById(containerId);
     if(!container) return;
+
+    // --- Dimensions ---
     const W = container.offsetWidth || 240;
     const H = 250;
     const margin = {top: 20, right: 10, bottom: 40, left: 45};
-    const iw = W - margin.left - margin.right;
-    const ih = H - margin.top - margin.bottom;
+    const iw = W - margin.left - margin.right;   // inner width
+    const ih = H - margin.top - margin.bottom;    // inner height
 
     const svg = d3.select(`#${containerId}`)
       .append("svg").attr("viewBox", `0 0 ${W} ${H}`);
 
+    // --- Scales ---
     const x = d3.scaleBand().domain(AGE_GROUPS).range([0, iw]).padding(0.2);
     const yMax = d3.max(raw, d => d[dataKey]);
-    const y = d3.scaleLinear().domain([0, yMax * 1.15]).range([ih, 0]);
+    const y = d3.scaleLinear().domain([0, yMax * 1.15]).range([ih, 0]); // 15 % headroom
 
     const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Gridlines & Axes
+    // --- Gridlines & Axes ---
     g.append("g").attr("class","grid").call(d3.axisLeft(y).tickSize(-iw).tickFormat(""))
       .selectAll("line").style("stroke","rgba(0,0,0,0.07)");
-    g.select(".grid .domain").remove();
+    g.select(".grid .domain").remove();       // hide the axis spine
     g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).tickSize(0))
       .selectAll("text")
       .style("font-size", "0.65rem")
@@ -210,85 +286,100 @@ async function drawArrestChargeBars() {
     g.append("g").call(d3.axisLeft(y).ticks(5).tickFormat(d3.format("~s")))
       .select(".domain").style("stroke","rgba(0,0,0,0.15)");
 
+    // Minimum bar height so tiny values remain visible
     const MIN_BAR = 3;
 
+    // --- Bars ---
     g.selectAll(".bar")
       .data(raw).enter().append("rect")
       .attr("class", "bar")
       .attr("x", d => x(d.age))
-      .attr("y", ih)
+      .attr("y", ih)                          // start at baseline for animation
       .attr("width", x.bandwidth())
       .attr("height", 0)
       .attr("fill", color)
-      .attr("rx", 3)
+      .attr("rx", 3)                          // rounded corners
       .on("mouseover", (e,d) => showTip(`<strong>${d.age}</strong><br>${labelText}: <strong>${d[dataKey]}</strong>`, e))
       .on("mousemove", moveTip)
       .on("mouseout", hideTip)
+      // Animated entrance from baseline
       .transition().duration(800).delay((_,i) => i * 80)
       .attr("y", d => d[dataKey] > 0 ? Math.min(y(d[dataKey]), ih - MIN_BAR) : ih)
       .attr("height", d => d[dataKey] > 0 ? Math.max(ih - y(d[dataKey]), MIN_BAR) : 0);
 
-      // Value annotations
+      // --- Value annotations above each bar ---
       g.selectAll(".lbl")
       .data(raw).enter().append("text")
       .attr("class", "lbl")
       .attr("text-anchor", "middle")
       .attr("x", d => x(d.age) + x.bandwidth() / 2)
-      .attr("y", ih)
+      .attr("y", ih)                          // start at baseline
       .style("font-size", "0.7rem")
       .style("font-weight", "600")
       .style("fill", color)
       .text(d => d[dataKey] > 0 ? d[dataKey] : "0")
+      // Animate upward to final position
       .transition().duration(800).delay((_,i) => i * 80 + 200)
       .attr("y", d => {
         const top = d[dataKey] > 0 ? Math.min(y(d[dataKey]), ih - MIN_BAR) : ih;
-        return top - 4;
+        return top - 4;   // 4 px above the bar top
       });
   }
 
+  // Render both charts using the shared helper
   renderBar("chart-arrests", "arrests", PALETTE.arrest, "Arrests");
   renderBar("chart-charges", "charges", PALETTE.charges, "Charges");
 }
 
 // ============================================================
 // 3. EIGHT PIE CHARTS — Fines by Jurisdiction & Age Group
+//
+// One donut chart per state, laid out in a CSS grid
+// (.chart-grid-multiples). Each donut shows the breakdown of
+// fines across age groups for that jurisdiction.
 // ============================================================
 async function drawStatePies() {
+  // --- Data loading ---
   const raw = await d3.csv("data/grouped_fine_by_jurisdiction_and_age.csv", d => ({
     jurisdiction: d["JURISDICTION"].trim(),
     age: d["AGE_GROUP"].trim(),
     fines: +d["Sum(FINES)"],
   }));
 
+  // Exclude the "All ages" aggregate row
   const filtered = raw.filter(d => d.age !== "All ages");
+  // Group rows by jurisdiction for per-state rendering
   const byJur = d3.group(filtered, d => d.jurisdiction);
   
   const container = document.getElementById("chart-pies-matrix");
   if(!container) return;
-  // Clear any existing content
-  container.innerHTML = "";
+  container.innerHTML = "";   // clear previous render
 
+  // D3 pie layout — no sorting, just use data order
   const pie = d3.pie().value(d => d.fines).sort(null);
 
+  // --- Render one donut per jurisdiction ---
   JURISDICTIONS.forEach(state => {
     let data = byJur.get(state) || [];
     const total = d3.sum(data, d => d.fines);
     
-    // Create a wrapper div for each pie
+    // Wrapper <div> for CSS grid positioning
     const wrap = document.createElement("div");
     wrap.className = "state-pie-wrapper";
-    wrap.dataset.state = state;
+    wrap.dataset.state = state;               // used for cross-filter dimming
     wrap.style.textAlign = "center";
     container.appendChild(wrap);
 
     const W = 140, H = 160;
-    const R = Math.min(W, 140) / 2 - 10;
+    const R = Math.min(W, 140) / 2 - 10;     // outer radius
+    // innerRadius = 45 % of R creates a donut hole
     const arc = d3.arc().innerRadius(R * 0.45).outerRadius(R);
 
     const svg = d3.select(wrap).append("svg").attr("viewBox", `0 0 ${W} ${H}`);
     const g = svg.append("g").attr("transform", `translate(${W/2},${H/2 - 10})`);
 
     if(total > 0) {
+      // Draw pie slices
       g.selectAll("path")
         .data(pie(data)).enter().append("path")
         .attr("d", arc)
@@ -297,23 +388,25 @@ async function drawStatePies() {
         .on("mouseover", (e,d) => showTip(`<strong>${state} - ${d.data.age}</strong><br>Fines: ${d3.format(",")(d.data.fines)}<br>${((d.data.fines/total)*100).toFixed(1)}%`, e))
         .on("mousemove", moveTip).on("mouseout", hideTip);
     } else {
+      // Placeholder when no data is available for a state
       g.append("circle").attr("r", R).attr("fill", "#eaeaea");
       g.append("text").attr("text-anchor", "middle").style("font-size", "0.7rem").attr("dy","0.3em").text("No Data");
     }
 
-    // Centered state label
+    // State abbreviation label centered in donut hole
     g.append("text").attr("text-anchor", "middle").attr("dy", "0.3em")
       .style("font-weight", "700").style("font-size", "0.8rem")
       .style("fill", "#062654")
       .text(state);
       
-    // Total label below
+    // Total label below the donut
     svg.append("text").attr("x", W/2).attr("y", H - 5)
       .attr("text-anchor", "middle").style("font-size", "0.65rem").style("fill", "#44627a")
       .text("Total: " + d3.format(".2s")(total));
   });
 
-  // Cross-Filter Subscription
+  // --- Cross-filter subscription ---
+  // Dim every pie wrapper that does NOT match the selected jurisdiction
   subscribeToFilter(activeFilter => {
     container.querySelectorAll('.state-pie-wrapper').forEach(wrapper => {
       if (activeFilter && wrapper.dataset.state !== activeFilter) {
@@ -324,7 +417,7 @@ async function drawStatePies() {
     });
   });
 
-  // Render Legend
+  // --- Shared legend for age-group colours ---
   const legendContainer = document.getElementById("chart-pies-legend");
   if(legendContainer) {
     legendContainer.innerHTML = "";
@@ -347,14 +440,20 @@ async function drawStatePies() {
 
 // ============================================================
 // 4. GROUPED BAR — Detection Method by Jurisdiction (SORTED)
+//
+// Camera-issued vs Police-issued fines, sorted by total
+// descending. Supports log ↔ linear scale toggling.
+// Camera bars use a diagonal hatch pattern for texture.
 // ============================================================
 async function drawDetectionBar() {
+  // --- Load & pivot data ---
   const raw = await d3.csv("data/grouped_fine_by_jurisdiction_and_detection.csv", d => ({
     jurisdiction: d["JURISDICTION"].trim(),
     method: d["DETECTION_METHOD"].trim(),
     fines: +d["Sum(FINES)"],
   }));
 
+  // Pivot from long format to wide: { jurisdiction, "Camera issued", "Police issued", total }
   const byJur = d3.group(raw, d => d.jurisdiction);
   const pivoted = [];
   byJur.forEach((rows, j) => {
@@ -366,13 +465,14 @@ async function drawDetectionBar() {
     pivoted.push(obj);
   });
   
-  // Sort jurisdictions by TOTAL fines descending
+  // Sort jurisdictions by total fines descending for visual impact
   pivoted.sort((a,b) => b.total - a.total);
 
   const jurs    = pivoted.map(d => d.jurisdiction);
   const methods = ["Camera issued", "Police issued"];
   const colors  = { "Camera issued": PALETTE.camera, "Police issued": PALETTE.police };
 
+  // --- SVG dimensions ---
   const container = document.getElementById("chart-detection");
   container.innerHTML = "";
   
@@ -385,6 +485,8 @@ async function drawDetectionBar() {
   const svg = d3.select("#chart-detection")
     .append("svg").attr("viewBox",`0 0 ${W} ${H}`);
 
+  // --- Hatch pattern for "Camera issued" bars ---
+  // Diagonal stripes over a solid fill for texture differentiation
   const defs = svg.append("defs");
   const hatch = defs.append("pattern")
     .attr("id", "pattern-camera")
@@ -400,14 +502,18 @@ async function drawDetectionBar() {
 
   const g = svg.append("g").attr("transform",`translate(${margin.left},${margin.top})`);
 
+  // --- Scales ---
+  // Outer band scale groups jurisdictions; inner band scale separates methods within each group
   const x0 = d3.scaleBand().domain(jurs).range([0,iw]).padding(0.28);
   const x1 = d3.scaleBand().domain(methods).rangeRound([0, x0.bandwidth()]).padding(0.06);
 
-  let useLog = true;
+  // --- Log / Linear toggle state ---
+  let useLog = true;               // default to logarithmic
   const btnLog = document.getElementById("btn-scale-log");
   const btnLin = document.getElementById("btn-scale-lin");
 
-  // Insight Calculations
+  // --- Dynamic insight text ---
+  // Calculate camera-to-total ratio per state and render to the insight card
   const calcRatios = pivoted.map(d => {
     const cam = d["Camera issued"] || 0;
     const pol = d["Police issued"] || 0;
@@ -418,57 +524,74 @@ async function drawDetectionBar() {
     };
   }).sort((a,b) => b.ratio - a.ratio);
   
-  const topState = calcRatios[0];
-  const lowState = calcRatios[calcRatios.length - 1]; // usually NT
+  const topState = calcRatios[0];                          // highest camera reliance
+  const lowState = calcRatios[calcRatios.length - 1];      // lowest camera reliance (often NT)
   
   const insightTextObj = document.getElementById("insight-camera-ratio");
   if (insightTextObj) {
     insightTextObj.innerHTML = `<strong>Data Processing Output:</strong> <strong>${topState.state}</strong> leads automated enforcement (<strong>${topState.ratio.toFixed(1)}%</strong> of fines via camera). Conversely, <strong>${lowState.state}</strong> relies least on automation (<strong>${lowState.ratio.toFixed(1)}%</strong>), highlighting a massive structural inequality in how safety policy is enforced physically vs digitally.`;
   }
 
+  /**
+   * Redraw y-axis elements (gridlines + axis labels).
+   * Called on initial render AND every time the user toggles scale.
+   * @returns {d3.ScaleLog|d3.ScaleLinear} The newly created y-scale
+   */
   function drawScaleElements() {
     const yMaxL = d3.max(pivoted, d => Math.max(d["Camera issued"], d["Police issued"]));
     const yScale = useLog 
       ? d3.scaleLog().domain([1, yMaxL * 1.5]).range([ih, 0]).clamp(true)
       : d3.scaleLinear().domain([0, yMaxL * 1.15]).range([ih, 0]);
 
-    // gridlines & axes
+    // Remove previous axis elements before redrawing
     g.selectAll(".grid").remove();
     g.selectAll(".y-axis").remove();
     
+    // Horizontal gridlines
     g.append("g").attr("class","grid").call(d3.axisLeft(yScale).ticks(5).tickSize(-iw).tickFormat(""))
       .selectAll("line").style("stroke","rgba(0,0,0,0.07)");
     g.select(".grid .domain").remove();
     
+    // Y-axis labels
     g.append("g").attr("class","y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d3.format("~s")))
       .select(".domain").style("stroke","rgba(0,0,0,0.15)");
       
     return yScale;
   }
 
+  // Initial draw of scale elements
   let y = drawScaleElements();
+
+  // Bottom axis — jurisdiction labels
   g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x0).tickSize(0))
     .select(".domain").style("stroke","rgba(0,0,0,0.15)");
 
+  // Minimum bar height so near-zero values remain clickable
   const MIN_BAR = 3;
 
+  /**
+   * Compute the y position (top edge) for a bar given a value.
+   * Handles log-scale clamping (log(0) is -Infinity).
+   */
   const getBarY = (val, yScl) => {
     if (val <= 0) return ih;
     return useLog ? Math.min(yScl(Math.max(1, val)), ih - MIN_BAR) : Math.min(yScl(val), ih - MIN_BAR);
   };
 
+  /** Compute the height for a bar given a value. */
   const getBarH = (val, yScl) => {
     if (val <= 0) return 0;
     return useLog ? Math.max(ih - yScl(Math.max(1, val)), MIN_BAR) : Math.max(ih - yScl(val), MIN_BAR);
   };
 
+  // --- Draw bars + value labels for each detection method ---
   methods.forEach(m => {
     // Bars
     g.selectAll(`.bar-det-${m.replace(/\s+/g,"-")}`)
       .data(pivoted).enter().append("rect")
       .attr("class", `bar-det bar-det-${m.replace(/\s+/g,"-")}`)
       .attr("x", d => x0(d.jurisdiction) + x1(m))
-      .attr("y", ih)
+      .attr("y", ih)                                                // start at baseline
       .attr("width", x1.bandwidth())
       .attr("height", 0)
       .attr("fill", m === "Camera issued" ? "url(#pattern-camera)" : colors[m])
@@ -477,11 +600,12 @@ async function drawDetectionBar() {
       .attr("rx", 4)
       .on("mouseover",(e,d) => showTip(`<strong>${d.jurisdiction}</strong><br>${m}: <strong>${d3.format(",")(d[m])}</strong>`,e))
       .on("mousemove", moveTip).on("mouseout", hideTip)
+      // Animated entrance
       .transition().duration(700).delay((_,i) => i * 60)
       .attr("y", d => getBarY(d[m], y))
       .attr("height", d => getBarH(d[m], y));
 
-    // Labels
+    // Value labels above bars
     g.selectAll(`.lbl-det-${m.replace(/\s+/g,"-")}`)
       .data(pivoted).enter().append("text")
       .attr("class", `lbl-det lbl-det-${m.replace(/\s+/g,"-")}`)
@@ -494,13 +618,14 @@ async function drawDetectionBar() {
       .attr("y", d => d[m] <= 0 ? ih : getBarY(d[m], y) - 4);
   });
 
-  // Scale Toggle Events
+  // --- Scale toggle button events ---
   if (btnLog && btnLin) {
     const updateScale = (isLog) => {
       useLog = isLog;
       btnLog.classList.toggle("active", isLog);
       btnLin.classList.toggle("active", !isLog);
       
+      // Recompute y-scale and transition bars / labels to new positions
       const newY = drawScaleElements();
       methods.forEach(m => {
         g.selectAll(`.bar-det-${m.replace(/\s+/g,"-")}`)
@@ -517,13 +642,14 @@ async function drawDetectionBar() {
     btnLin.addEventListener("click", () => updateScale(false));
   }
 
-  // CROSS-FILTER SUBSCRIBER
+  // --- Cross-filter subscription ---
+  // Dim bars and labels that do not match the active jurisdiction
   subscribeToFilter((activeFilter) => {
     g.selectAll(".bar-det").style("opacity", d => (activeFilter && d.jurisdiction !== activeFilter) ? 0.15 : 1);
     g.selectAll(".lbl-det").style("opacity", d => (activeFilter && d.jurisdiction !== activeFilter) ? 0.15 : 1);
   });
 
-  // legend
+  // --- Legend at bottom of SVG ---
   const leg = svg.append("g").attr("transform",`translate(${margin.left},${H-10})`);
   methods.forEach((m,i) => {
     const lx = i * 155;
@@ -535,35 +661,43 @@ async function drawDetectionBar() {
     leg.append("text").attr("x",lx+16).attr("y",0).style("font-size","0.78rem").style("fill","#18222d").text(m);
   });
   
+  // Scale info note
   svg.append("text").attr("x", margin.left).attr("y", 10).style("font-size", "0.65rem").style("fill", "#666").text("Note: Logarithmic Scale Applied to show structural differences.");
 }
 
 
 // ============================================================
 // 5. CHOROPLETH MAP — Enforcement Rates
+//
+// Loads a GeoJSON of Australian states and colours each state
+// by either Charge Rate or Arrest Rate (toggled by buttons).
+// Clicking a state triggers the global cross-filter.
 // ============================================================
 async function drawChoropleth() {
   const container = document.getElementById("chart-choropleth");
   if(!container) return;
   
+  // --- Load rate data ---
   const raw = await d3.csv("data/charges_and_arrest_rate_by_jurisdiction.csv", d => ({
     jurisdiction: d["JURISDICTION"].trim(),
     arrest:  +d["Arrest_Rate"],
     charges: +d["Charges_rate"],
   }));
   
-  let fillMetric = "charges"; // Default metric
-  
+  let fillMetric = "charges";   // default colouring mode
+
+  // Build lookup maps: state code → rate value
   const ratesMapCharge = new Map(raw.map(d => [d.jurisdiction, d.charges]));
   const ratesMapArrest = new Map(raw.map(d => [d.jurisdiction, d.arrest]));
   
   const maxCharge = d3.max(raw, d => d.charges);
   const maxArrest = d3.max(raw, d => d.arrest);
   
-  // Color scales for both modes
+  // Sequential colour scales — Oranges for charges, Blues for arrests
   const colorScaleCharge = d3.scaleSequential(d3.interpolateOranges).domain([0, maxCharge * 1.2]);
   const colorScaleArrest = d3.scaleSequential(d3.interpolateBlues).domain([0, maxArrest * 1.2]);
 
+  // --- Load GeoJSON ---
   let geoData;
   try {
     geoData = await d3.json("data/states.geojson");
@@ -573,15 +707,18 @@ async function drawChoropleth() {
     return;
   }
 
+  // --- SVG setup ---
   const W = container.offsetWidth || 350;
   const H = 280;
   
   const svg = d3.select("#chart-choropleth")
     .append("svg").attr("viewBox", `0 0 ${W} ${H}`);
 
+  // Mercator projection fitted to the GeoJSON bounding box
   const projection = d3.geoMercator().fitSize([W, H], geoData);
   const path = d3.geoPath().projection(projection);
 
+  // Map full state names (from GeoJSON properties) → abbreviations (from CSV)
   const stateCodeMap = {
     "Australian Capital Territory": "ACT",
     "New South Wales": "NSW",
@@ -593,11 +730,16 @@ async function drawChoropleth() {
     "Western Australia": "WA"
   };
 
+  /**
+   * Return the rate value and the colour scale for the current fill mode.
+   * @param {string} code  Two/three-letter jurisdiction code (e.g. "NSW")
+   */
   const getRateAndColor = (code) => {
     if (fillMetric === "charges") return { rate: ratesMapCharge.get(code) || 0, color: colorScaleCharge };
     return { rate: ratesMapArrest.get(code) || 0, color: colorScaleArrest };
   }
 
+  // --- Draw map paths ---
   const mapPaths = svg.append("g")
     .selectAll("path")
     .data(geoData.features)
@@ -610,13 +752,14 @@ async function drawChoropleth() {
       return getRateAndColor(code).color(getRateAndColor(code).rate);
     });
 
+  // --- Tooltip + click interactions ---
   mapPaths.on("mouseover", (e, d) => {
     const stateName = d.properties.STATE_NAME;
     const code = stateCodeMap[stateName] || stateName;
     const chargeRate = ratesMapCharge.get(code) || 0;
     const arrRate = ratesMapArrest.get(code) || 0;
     
-    // Highlight hovered metric
+    // Underline the currently active metric for emphasis
     const chargeHTML = fillMetric === "charges" ? `<u>Charge Rate: <strong>${chargeRate}%</strong></u>` : `Charge Rate: <strong>${chargeRate}%</strong>`;
     const arrHTML = fillMetric === "arrest" ? `<u>Arrest Rate: <strong>${arrRate}%</strong></u>` : `Arrest Rate: <strong>${arrRate}%</strong>`;
     
@@ -624,10 +767,11 @@ async function drawChoropleth() {
   }).on("mousemove", moveTip).on("mouseout", hideTip)
   .on("click", (e, d) => {
     const code = stateCodeMap[d.properties.STATE_NAME] || d.properties.STATE_NAME;
-    setGlobalFilter(code); // Trigger cross-filter
+    setGlobalFilter(code);   // fire the global cross-filter
   }).style("cursor", "pointer");
 
-  // Subscribe Map to Filter
+  // --- Cross-filter subscription ---
+  // Highlight the selected state and darken its border
   subscribeToFilter(activeFilter => {
     mapPaths.transition().duration(300)
       .style("opacity", d => {
@@ -644,14 +788,16 @@ async function drawChoropleth() {
       });
   });
 
-  // Dynamic Legend
+  // --- Colour legend (gradient bar) ---
   const leg = svg.append("g").attr("transform", `translate(10, ${H-30})`);
   const defs = svg.append("defs");
   
+  // Gradient for charges mode
   const gradCharge = defs.append("linearGradient").attr("id", "choro-grad-charge");
   gradCharge.append("stop").attr("offset","0%").attr("stop-color", colorScaleCharge(0));
   gradCharge.append("stop").attr("offset","100%").attr("stop-color", colorScaleCharge(maxCharge));
   
+  // Gradient for arrests mode
   const gradArrest = defs.append("linearGradient").attr("id", "choro-grad-arrest");
   gradArrest.append("stop").attr("offset","0%").attr("stop-color", colorScaleArrest(0));
   gradArrest.append("stop").attr("offset","100%").attr("stop-color", colorScaleArrest(maxArrest));
@@ -661,26 +807,31 @@ async function drawChoropleth() {
   const legendMin = leg.append("text").attr("x", 0).attr("y", -5).style("font-size", "0.6rem").text("0% (Charge Rate)");
   const legendMax = leg.append("text").attr("x", 140).attr("y", -5).attr("text-anchor", "end").style("font-size", "0.6rem").text(`${maxCharge}%`);
 
-  // Interactions
+  // --- Mode toggle buttons (Charge Rate / Arrest Rate) ---
   const btnCharge = document.getElementById("btn-map-charge");
   const btnArrest = document.getElementById("btn-map-arrest");
   
   if (btnCharge && btnArrest) {
+    /**
+     * Switch between charge-rate and arrest-rate colouring.
+     * Animates the fill transition and updates the legend.
+     */
     const swapMapMode = (isCharge) => {
+      // Skip if already in the requested mode
       if ((isCharge && fillMetric === "charges") || (!isCharge && fillMetric === "arrest")) return;
       fillMetric = isCharge ? "charges" : "arrest";
       
       btnCharge.classList.toggle("active", isCharge);
       btnArrest.classList.toggle("active", !isCharge);
       
-      // Animate map color
+      // Animate map fill colours
       mapPaths.transition().duration(600).attr("fill", d => {
         const stateName = d.properties.STATE_NAME;
         const code = stateCodeMap[stateName] || stateName;
         return getRateAndColor(code).color(getRateAndColor(code).rate);
       });
       
-      // Update Legend
+      // Update legend gradient and labels
       legendRect.attr("fill", isCharge ? `url(#choro-grad-charge)` : `url(#choro-grad-arrest)`);
       legendMin.text(`0% (${isCharge ? 'Charge Rate' : 'Arrest Rate'})`);
       legendMax.text(`${isCharge ? maxCharge : maxArrest}%`);
@@ -693,16 +844,23 @@ async function drawChoropleth() {
 
 // ============================================================
 // 6. HEATMAP — Fines per Jurisdiction × Age
+//
+// Rows = Age groups, Columns = Jurisdictions.
+// Colour intensity encodes fine count (sequential blue).
+// Clicking a heatmap cell triggers the global cross-filter.
 // ============================================================
 async function drawHeatmap() {
+  // --- Data loading ---
   const raw = await d3.csv("data/grouped_fine_by_jurisdiction_and_age.csv", d => ({
     jurisdiction: d["JURISDICTION"].trim(),
     age:   d["AGE_GROUP"].trim(),
     fines: +d["Sum(FINES)"],
   }));
 
+  // Exclude summary row and zero-fine cells
   const filtered = raw.filter(d => d.age !== "All ages" && d.fines > 0);
 
+  // --- SVG dimensions ---
   const container = document.getElementById("chart-heatmap");
   if(!container) return;
   const W = container.offsetWidth || 520;
@@ -716,20 +874,24 @@ async function drawHeatmap() {
 
   const g = svg.append("g").attr("transform",`translate(${margin.left},${margin.top})`);
 
+  // --- Scales ---
   const x = d3.scaleBand().domain(JURISDICTIONS).range([0,iw]).padding(0.06);
   const y = d3.scaleBand().domain(AGE_GROUPS).range([0,ih]).padding(0.06);
   const maxVal = d3.max(filtered, d => d.fines);
   const color  = d3.scaleSequential(d3.interpolateBlues).domain([0, maxVal]);
 
+  // --- Axes (no axis spines) ---
   g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).tickSize(0)).select(".domain").remove();
   g.append("g").call(d3.axisLeft(y).tickSize(0)).select(".domain").remove();
 
+  // --- Heatmap cells ---
   g.selectAll("rect.cell")
     .data(filtered).enter().append("rect")
     .attr("class","cell")
     .attr("x", d => x(d.jurisdiction)).attr("y", d => y(d.age))
     .attr("width",  x.bandwidth()).attr("height", y.bandwidth())
-    .attr("rx", 4).attr("fill","rgba(255,255,255,0)")
+    .attr("rx", 4)
+    .attr("fill","rgba(255,255,255,0)")   // start transparent for animation
     .style("cursor", "pointer")
     .on("click", (e,d) => setGlobalFilter(d.jurisdiction))
     .on("mouseover", function(e,d) {
@@ -740,10 +902,11 @@ async function drawHeatmap() {
        d3.select(this).style("stroke", "none");
        hideTip();
     })
+    // Staggered colour fade-in
     .transition().duration(800).delay((_,i) => i*20)
     .attr("fill", d => color(d.fines));
     
-  // Subscribing to filter
+  // --- Cross-filter subscription ---
   subscribeToFilter(tf => {
      g.selectAll("rect.cell").transition().duration(300)
        .style("opacity", d => (tf && d.jurisdiction !== tf) ? 0.15 : 1);
@@ -751,23 +914,31 @@ async function drawHeatmap() {
 }
 
 // ============================================================
-// 7. RADAR CHART — Percentage of Fines by Jurisdiction
+// 7. RADAR CHART — Share of National Fines by Jurisdiction
+//
+// Uses d3.scaleSqrt to inflate smaller states so they remain
+// visible alongside NSW/QLD. Click axis labels to trigger the
+// cross-filter.
 // ============================================================
 async function drawRadarChart() {
+  // --- Data loading ---
   const raw = await d3.csv("data/grouped_fine_by_jurisdiction_and_age.csv", d => ({
     jurisdiction: d["JURISDICTION"].trim(),
     age: d["AGE_GROUP"].trim(),
     fines: +d["Sum(FINES)"],
   }));
 
+  // Use only the "All ages" summary row per jurisdiction
   const allAges = raw.filter(d => d.age === "All ages");
   const totalNation = d3.sum(allAges, d => d.fines);
   
+  // Compute each jurisdiction's share of total national fines
   let radarData = allAges.map(d => ({
     axis: d.jurisdiction,
-    value: d.fines / totalNation
+    value: d.fines / totalNation   // proportion (0-1)
   }));
 
+  // --- SVG setup ---
   const container = document.getElementById("chart-radar");
   if(!container) return;
   const W = container.offsetWidth || 500;
@@ -781,13 +952,13 @@ async function drawRadarChart() {
   const g = svg.append("g").attr("transform", `translate(${W/2},${H/2})`);
 
   const numAxes = JURISDICTIONS.length;
-  const angleSlice = (Math.PI * 2) / numAxes;
-  const maxVal = d3.max(radarData, d => d.value) * 1.1; // adding some headroom
+  const angleSlice = (Math.PI * 2) / numAxes;   // angle between each axis
+  const maxVal = d3.max(radarData, d => d.value) * 1.1; // headroom
   
-  // Use scaleSqrt to inflate small states
+  // scaleSqrt inflates small values so ACT/TAS/NT are visible
   const rScale = d3.scaleSqrt().range([0, radius]).domain([0, maxVal]);
 
-  // Background Webs
+  // --- Background concentric circles (web rings) ---
   const ticks = [0.05, 0.15, 0.30, 0.45];
   ticks.forEach(t => {
     if (t > maxVal) return;
@@ -796,13 +967,14 @@ async function drawRadarChart() {
       .attr("class", "radar-web")
       .attr("r", r);
       
+    // Percentage label on each ring
     g.append("text")
       .attr("x", 4).attr("y", -r + 12)
       .style("font-size", "0.6rem").style("fill", "#666")
       .text(`${(t * 100).toFixed(0)}%`);
   });
 
-  // Axes lines
+  // --- Radial axis lines (spokes) ---
   const axes = g.selectAll(".axis").data(JURISDICTIONS).enter().append("g").attr("class", "axis");
   axes.append("line")
     .attr("x1", 0).attr("y1", 0)
@@ -810,6 +982,7 @@ async function drawRadarChart() {
     .attr("y2", (d, i) => rScale(maxVal * 1.05) * Math.sin(angleSlice * i - Math.PI / 2))
     .attr("class", "radar-axis");
 
+  // Axis labels (state abbreviations)
   axes.append("text")
     .attr("class", "axis-label")
     .attr("text-anchor", "middle")
@@ -817,47 +990,48 @@ async function drawRadarChart() {
     .attr("y", (d, i) => rScale(maxVal * 1.25) * Math.sin(angleSlice * i - Math.PI / 2))
     .style("font-weight", "600").style("font-size", "0.75rem").style("fill", "#062654")
     .text(d => d)
+    // Click a label to cross-filter + show an isolated tooltip
     .on("click", (e, d) => {
-      // Find the data point for this state
       const targetPoint = radarData.find(x => x.axis === d);
       if (!targetPoint) return;
       
       setGlobalFilter(d);
              
       showTip(`<strong>Isolated Footprint</strong><br>${d} handles <strong>${(targetPoint.value * 100).toFixed(2)}%</strong> of national volume.`, e);
-      setTimeout(hideTip, 2500);
+      setTimeout(hideTip, 2500);   // auto-hide after 2.5 s
     });
 
-  // Build polygon
+  // --- Radar polygon (filled area) ---
   const radarLine = d3.lineRadial()
     .angle((d,i) => i * angleSlice)
     .radius(d => rScale(d.value))
-    .curve(d3.curveLinearClosed);
+    .curve(d3.curveLinearClosed);   // close the polygon path
 
-  // Subscribe Radar to Filter
   const pathGroup = g.append("path")
     .datum(radarData)
     .attr("class", "radar-area")
     .attr("d", radarLine)
-    .style("opacity", 0);
+    .style("opacity", 0);          // hidden initially for fade-in
 
+  // --- Cross-filter subscription ---
+  // Enlarge and highlight the selected state's data point
   subscribeToFilter(activeFilter => {
-    // Dim Unselected Web Points
     g.selectAll(".radar-point").transition().duration(200)
       .attr("r", p => (activeFilter && p.axis === activeFilter) ? 8 : (activeFilter ? 2 : 4))
       .style("opacity", p => (activeFilter && p.axis !== activeFilter) ? 0.3 : 1)
       .style("fill", p => (activeFilter && p.axis === activeFilter) ? PALETTE.camera : "#fff");
 
-    // Dim Background path slightly as well to focus on point
+    // Dim the background polygon so focus is on the point
     pathGroup.transition().duration(200)
       .style("fill-opacity", activeFilter ? 0.1 : 0.4);
   });
 
+  // Fade-in the radar polygon
   pathGroup
     .transition().duration(1200)
     .style("opacity", 0.7);
 
-  // Data points
+  // --- Data point circles on each axis ---
   g.selectAll(".radar-point")
     .data(radarData)
     .enter().append("circle")
@@ -870,18 +1044,26 @@ async function drawRadarChart() {
 }
 
 // ============================================================
-// 7. ROAD CRASH - DUMBBELL PLOT
+// 7. ROAD CRASH — DUMBBELL PLOT
+//
+// Compares road-crash rates per state between 2023 and 2024.
+// A horizontal dumbbell connects the two dots:
+//   • Solid green line = improvement (rate decreased)
+//   • Dashed red line  = worsening  (rate increased)
+// Supports zoom & pan via d3.zoom.
 // ============================================================
 async function drawCrashSlopegraph() {
   const container = document.getElementById("chart-crash-slope");
   if(!container) return;
   
+  // --- Load CSV (wide format: one row per year, columns per state) ---
   const raw = await d3.csv("data/rate_roadcrashbystate.csv");
   const data23 = raw.find(d => d["Calendar year"] === "2023");
   const data24 = raw.find(d => d["Calendar year"] === "2024");
   
   if(!data23 || !data24) return;
 
+  // Build [{ state, v23, v24 }] for each jurisdiction
   const formatted = JURISDICTIONS.map(state => {
     return {
       state: state,
@@ -890,14 +1072,17 @@ async function drawCrashSlopegraph() {
     };
   });
 
+  // --- Dynamic insight text ---
   const slopeInsight = document.getElementById("insight-crash-slope");
   if (slopeInsight) {
+    // Compute absolute change and percentage change per state
     const deltas = formatted.map(d => ({ state: d.state, change: d.v24 - d.v23, pct: d.v23 > 0 ? ((d.v24 - d.v23) / d.v23) * 100 : 0 }));
-    const worsened = [...deltas].sort((a,b) => b.change - a.change)[0];
-    const improved = [...deltas].sort((a,b) => a.change - b.change)[0];
+    const worsened = [...deltas].sort((a,b) => b.change - a.change)[0];   // biggest increase
+    const improved = [...deltas].sort((a,b) => a.change - b.change)[0];   // biggest decrease
     slopeInsight.innerHTML = `<strong>Trajectory insight:</strong> <strong>${worsened.state}</strong> recorded the largest increase (${worsened.change.toFixed(2)}, ${worsened.pct >= 0 ? "+" : ""}${worsened.pct.toFixed(1)}%), while <strong>${improved.state}</strong> showed the biggest reduction (${improved.change.toFixed(2)}, ${improved.pct.toFixed(1)}%).`;
   }
   
+  // --- SVG setup ---
   const W = container.offsetWidth || 500;
   const H = 340;
   const margin = {top:30, right:30, bottom:40, left:60};
@@ -907,11 +1092,13 @@ async function drawCrashSlopegraph() {
   const svg = d3.select("#chart-crash-slope").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
   const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
   
+  // --- Scales ---
+  // y = categorical band for each state; x = linear for crash rates
   const y = d3.scaleBand().domain(formatted.map(d=>d.state)).range([0, ih]).padding(1);
   const maxV = d3.max(formatted, d => Math.max(d.v23, d.v24));
   const x = d3.scaleLinear().domain([0, maxV * 1.1]).range([0, iw]);
   
-  // Axes & Grid
+  // --- Gridlines & Axes ---
   const xAxisGrid = d3.axisBottom(x).tickSize(-ih).ticks(5).tickFormat("");
   const gridG = g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`);
   gridG.call(xAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
@@ -923,13 +1110,16 @@ async function drawCrashSlopegraph() {
    .style("fill", "#2e2e2e").style("font-size", "0.75rem").style("font-weight", "600");
   g.selectAll(".domain").style("stroke","rgba(255,255,255,0.2)");
   
+  // Clip path prevents dumbbells from overflowing during zoom
   svg.append("defs").append("clipPath").attr("id", "clip-slope").append("rect").attr("width", iw).attr("height", ih + 10).attr("y", -5);
   const chartArea = g.append("g").attr("clip-path", "url(#clip-slope)");
   
+  // --- Dumbbell groups (one per state) ---
   const dumbGrp = chartArea.selectAll(".dumbbell").data(formatted).enter().append("g")
     .style("cursor", "pointer")
     .on("click", (e,d) => setGlobalFilter(d.state))
     .on("mouseover", function(e, d) {
+       // Thicken the connecting bar on hover
        d3.select(this).selectAll("line.db-bar").style("stroke-width", "6").style("filter", "brightness(1.5)");
        const change = ((d.v24 - d.v23)/d.v23 * 100).toFixed(1);
        showTip(`<strong>${d.state} Shift</strong><br>2023 Rate: ${d.v23}<br>2024 Rate: ${d.v24}<br>Delta: <span style="color:${d.v24 > d.v23 ? '#f43f5e' : '#10b981'}"><strong>${change > 0 ? '+'+change : change}%</strong></span>`, e);
@@ -939,23 +1129,25 @@ async function drawCrashSlopegraph() {
        hideTip();
     });
 
-  // Connecting Bar
+  // Horizontal connecting bar between the two dots
   dumbGrp.append("line").attr("class", "db-bar")
     .attr("x1", d => x(d.v23)).attr("x2", d => x(d.v24))
     .attr("y1", d => y(d.state)).attr("y2", d => y(d.state))
-    .style("stroke", d => d.v24 > d.v23 ? "#f43f5e" : "#10b981")
-    .style("stroke-dasharray", d => d.v24 > d.v23 ? "6,3" : "none")
+    .style("stroke", d => d.v24 > d.v23 ? "#f43f5e" : "#10b981")         // red = worsened, green = improved
+    .style("stroke-dasharray", d => d.v24 > d.v23 ? "6,3" : "none")      // dashed for worsened
     .style("stroke-width", "4");
     
-  // 2023 Dot
+  // 2023 baseline dot (smaller, neutral grey)
   dumbGrp.append("circle").attr("class", "dot-23").attr("cx", d=>x(d.v23)).attr("cy", d=>y(d.state)).attr("r", 5).style("fill", "#cbd5e1");
-  // 2024 Dot
+  // 2024 dot (larger, coloured by direction of change)
   dumbGrp.append("circle").attr("class", "dot-24").attr("cx", d=>x(d.v24)).attr("cy", d=>y(d.state)).attr("r", 7).style("fill", d => d.v24 > d.v23 ? "#f43f5e" : "#10b981")
          .style("stroke", "#1a2333").style("stroke-width", "2");
 
-  // Zoom & Drag behavior
+  // --- Zoom & Pan behaviour ---
+  // Allows horizontal zoom to inspect closely spaced rates
   const zoom = d3.zoom().scaleExtent([0.5, 5]).extent([[0, 0], [iw, ih]]).on("zoom", (event) => {
     const newX = event.transform.rescaleX(x);
+    // Update axes and data positions on zoom
     xAxisG.call(xAxisObj.scale(newX)).selectAll("text").style("fill", "#2e2e2e");
     gridG.call(xAxisGrid.scale(newX)).selectAll("line").style("stroke", "rgba(255,255,255,0.05)").style("stroke-dasharray", "3,3");
     dumbGrp.selectAll(".db-bar").attr("x1", d => newX(d.v23)).attr("x2", d => newX(d.v24));
@@ -964,7 +1156,7 @@ async function drawCrashSlopegraph() {
   });
   svg.call(zoom);
 
-  // Legend
+  // --- Legend ---
   svg.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 4).style("fill", "#2e2e2e");
   svg.append("text").attr("x", 30).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2023 Base");
 svg.append("circle").attr("cx", 110).attr("cy", 20).attr("r", 4).style("fill", "#10b981");
@@ -972,22 +1164,34 @@ svg.append("text").attr("x", 120).attr("y", 24).style("font-size", "0.7rem").sty
 svg.append("circle").attr("cx", 250).attr("cy", 20).attr("r", 4).style("fill", "#f43f5e");
 svg.append("text").attr("x", 260).attr("y", 24).style("font-size", "0.7rem").style("fill", "#2e2e2e").text("2024 Worsened (dashed)");
 
+  // --- Cross-filter subscription ---
   subscribeToFilter(tf => {
      dumbGrp.style("opacity", d => (tf && d.state !== tf) ? 0.15 : 1);
   });
 }
 
 // ============================================================
-// 8. NIGHTINGALE ROSE CHART (Polar Chart)
+// 8. NIGHTINGALE ROSE CHART (Polar Bar Chart)
+//
+// Shows crash counts by age group as radial "petals".
+// Supports toggling between 2023 and 2024 data via buttons.
 // ============================================================
 async function drawCrashBarChart() {
   const container = document.getElementById("chart-crash-bar");
   if(!container) return;
   
+  // --- Load CSV (wide format: one row per year, columns per age group) ---
   const raw = await d3.csv("data/roadcrash_count_by_age_group.csv");
   const keys = Object.keys(raw[0]);
+  // Extract age-group column names (everything except "Calendar year")
   const ageKeys = keys.filter(k => k !== "Calendar year" && k.trim() !== "");
   
+  /**
+   * Extract and normalise data for a given year.
+   * Cleans up whitespace in column names and converts values to numbers.
+   * @param {string} yearStr  e.g. "2023" or "2024"
+   * @returns {Array<{age: string, count: number}>}
+   */
   const extractData = (yearStr) => {
     const r = raw.find(d => d["Calendar year"] === yearStr);
     return ageKeys.map(k => {
@@ -997,11 +1201,14 @@ async function drawCrashBarChart() {
     });
   };
 
+  // --- Dynamic insight text ---
   const ageInsight = document.getElementById("insight-crash-age");
   if (ageInsight) {
     const data2024 = extractData("2024");
     const data2023 = extractData("2023");
+    // Find the age group with the most crashes in 2024
     const top24 = [...data2024].sort((a,b) => b.count - a.count)[0];
+    // Find the age group with the largest year-on-year increase
     const deltas = data2024.map(d => {
       const prev = data2023.find(x => x.age === d.age);
       return { age: d.age, change: d.count - (prev ? prev.count : 0) };
@@ -1013,6 +1220,7 @@ async function drawCrashBarChart() {
   let currentYear = "2024";
   let dataDisplay = extractData(currentYear);
   
+  // --- SVG setup ---
   const W = container.offsetWidth || 500;
   const H = 340;
   const margin = 20;
@@ -1021,18 +1229,23 @@ async function drawCrashBarChart() {
   const radius = Math.min(W, H) / 2 - margin;
   const g = svg.append("g").attr("transform", `translate(${W/2}, ${H/2 + 10})`);
   
+  // --- Scales ---
   const maxVal = d3.max(dataDisplay, d=>d.count) * 1.2;
+  // Angular scale — one band per age group around the full circle
   const x = d3.scaleBand().range([0, 2 * Math.PI]).domain(dataDisplay.map(d=>d.age));
-  const y = d3.scaleLinear().range([30, radius]).domain([0, maxVal]); // 30 is inner hole
+  // Radial scale — innerRadius 30 leaves a hole for aesthetics
+  const y = d3.scaleLinear().range([30, radius]).domain([0, maxVal]);
   
+  // --- Arc generator (petal shape) ---
   const arcMaker = d3.arc()
     .innerRadius(30)
-    .outerRadius(d => y(d.count))
+    .outerRadius(d => y(d.count))          // height encodes count
     .startAngle(d => x(d.age))
     .endAngle(d => x(d.age) + x.bandwidth())
-    .padAngle(0.05)
+    .padAngle(0.05)                        // small gap between petals
     .padRadius(30);
 
+  // --- Draw petals ---
   const petals = g.selectAll("path.petal").data(dataDisplay).enter().append("path")
     .attr("class", "petal")
     .attr("fill", (d,i) => PALETTE.ageGroups[i % PALETTE.ageGroups.length])
@@ -1048,20 +1261,22 @@ async function drawCrashBarChart() {
        hideTip();
     });
 
-  // Circular grid rings
-  const ringVals = y.ticks(4).slice(1);
+  // --- Concentric reference rings ---
+  const ringVals = y.ticks(4).slice(1);    // skip the 0 tick
   const rings = g.selectAll(".ring").data(ringVals).enter().append("circle")
     .attr("r", d => y(d))
     .style("fill", "none").style("stroke", "rgba(255,255,255,0.1)").style("stroke-dasharray", "2,2");
     
+  // Ring value labels (very faint)
   g.selectAll(".ring-lbl").data(ringVals).enter().append("text")
     .attr("y", d => -y(d)).attr("dy", "0.8em").attr("text-anchor", "middle")
     .style("fill", "rgba(255, 255, 255, 0.03)").style("font-size", "0.6rem")
     .text(d => d);
 
-  // Age group labels radially outward
+  // --- Radial age-group labels positioned outside each petal ---
   const lbls = g.selectAll(".petal-lbl").data(dataDisplay).enter().append("g")
     .attr("class", "petal-lbl")
+    // Flip text-anchor depending on which side of the circle the label lands
     .attr("text-anchor", d => {
         const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
         return (a > 90 && a < 270) ? "end" : "start";
@@ -1069,6 +1284,7 @@ async function drawCrashBarChart() {
     .attr("transform", d => {
         const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
         const r = y(d.count) + 10;
+        // Rotate 180° for bottom-half labels so text reads left-to-right
         return `rotate(${a}) translate(${r},0) ${a > 90 && a < 270 ? "rotate(180)" : ""}`;
     });
     
@@ -1076,13 +1292,17 @@ async function drawCrashBarChart() {
     .style("font-size", "0.6rem").style("font-weight", "600").style("fill", "#414344")
     .text(d => d.age);
 
+  // --- Year toggle buttons ---
   const b23 = document.getElementById("btn-crash-23");
   const b24 = document.getElementById("btn-crash-24");
   if(b23 && b24) {
+    // Switch to 2023 data
     b23.addEventListener("click", () => {
       b23.classList.add("active"); b24.classList.remove("active");
       const nd = extractData("2023");
+      // Elastic transition on petal shapes
       petals.data(nd).transition().duration(800).ease(d3.easeElasticOut).attr("d", arcMaker);
+      // Reposition labels to match new petal heights
       lbls.data(nd).transition().duration(800).ease(d3.easeElasticOut)
         .attr("text-anchor", d => {
           const a = (x(d.age) + x.bandwidth()/2) * 180 / Math.PI - 90;
@@ -1093,6 +1313,7 @@ async function drawCrashBarChart() {
           return `rotate(${a}) translate(${y(d.count) + 10},0) ${a > 90 && a < 270 ? "rotate(180)" : ""}`;
         });
     });
+    // Switch to 2024 data
     b24.addEventListener("click", () => {
       b24.classList.add("active"); b23.classList.remove("active");
       const nd = extractData("2024");
@@ -1111,20 +1332,30 @@ async function drawCrashBarChart() {
 }
 
 // ============================================================
-// 9. MAGIC QUADRANT: ROAD CRASH VS FINES SCATTER
+// 9. MAGIC QUADRANT — Road Crash vs Fines Scatter Plot
+//
+// Each bubble = one jurisdiction.
+//   x-axis = total fines volume
+//   y-axis = road crash count (2024)
+// National-average crosshairs divide the chart into four
+// quadrants labelled by enforcement × risk level.
+// Bubble radius ∝ √crashes for area-proportional sizing.
 // ============================================================
 async function drawCrashScatter() {
   const container = document.getElementById("chart-crash-scatter");
   if(!container) return;
 
+  // Hardcoded 2024 crash volumes per state (sourced from BITRE data)
   const crashVol24 = { NSW: 300, VIC: 271, QLD: 273, SA: 81, WA: 171, TAS: 28, NT: 52, ACT: 11 };
   
+  // --- Load fines data and aggregate per state ---
   const finesRaw = await d3.csv("data/grouped_fine_by_jurisdiction_and_detection.csv");
   const finesByState = JURISDICTIONS.map(st => {
     const sum = d3.sum(finesRaw.filter(d=>d.JURISDICTION.trim()===st), d => +d["Sum(FINES)"]);
     return { state: st, fines: sum, crashes: crashVol24[st] || 0 };
   });
   
+  // --- SVG dimensions ---
   const W = container.offsetWidth || 800;
   const H = 400;
   const margin = {top:40, right:50, bottom:60, left:80};
@@ -1134,55 +1365,70 @@ async function drawCrashScatter() {
   const svg = d3.select("#chart-crash-scatter").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
   const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
   
+  // --- Scales ---
+  // Small negative lower bounds so bubble edges don't clip at axis=0
   const xMax = d3.max(finesByState, d=>d.fines);
   const x = d3.scaleLinear().domain([-xMax * 0.08, xMax*1.1]).range([0, iw]);
   const yMax = d3.max(finesByState, d=>d.crashes);
   const y = d3.scaleLinear().domain([-yMax * 0.05, yMax*1.1]).range([ih, 0]);
   
+  // --- National averages (used as quadrant dividers) ---
   const meanFines = d3.mean(finesByState, d=>d.fines);
   const meanCrashes = d3.mean(finesByState, d=>d.crashes);
 
+  // --- Dynamic Pearson correlation insight ---
   const scatterInsight = document.getElementById("insight-crash-scatter");
   if (scatterInsight) {
+    // Pearson r calculation
     const numerator = d3.sum(finesByState, d => (d.fines - meanFines) * (d.crashes - meanCrashes));
     const denomX = Math.sqrt(d3.sum(finesByState, d => (d.fines - meanFines) ** 2));
     const denomY = Math.sqrt(d3.sum(finesByState, d => (d.crashes - meanCrashes) ** 2));
     const corr = (denomX && denomY) ? numerator / (denomX * denomY) : 0;
+    // Identify the state with the highest crash-to-fine ratio (outlier)
     const riskOutlier = [...finesByState].sort((a,b) => (b.crashes / Math.max(b.fines, 1)) - (a.crashes / Math.max(a.fines, 1)))[0];
     scatterInsight.innerHTML = `<strong>Correlation insight:</strong> Fine volume and crash volume show a <strong>${corr >= 0 ? "positive" : "negative"}</strong> but <strong>${Math.abs(corr).toFixed(2)}</strong> strength relationship (Pearson r), suggesting enforcement intensity alone does not explain safety outcomes. <strong>${riskOutlier.state}</strong> appears as a high-risk outlier relative to its fine volume.`;
   }
 
-  // Quadrant Backgrounds
+  // --- Quadrant background rectangles ---
+  // Each rectangle is a soft-coloured zone for visual context
   const qGrp = g.append("g").attr("class", "quadrants").style("opacity", 0.12);
-  qGrp.append("rect").attr("x", x(meanFines)).attr("y", 0).attr("width", iw - x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#10b981"); // High Fines, High Crashes
-  qGrp.append("rect").attr("x", 0).attr("y", 0).attr("width", x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#f59e0b"); // Low Fines, High Crashes
-  qGrp.append("rect").attr("x", x(meanFines)).attr("y", y(meanCrashes)).attr("width", iw - x(meanFines)).attr("height", ih - y(meanCrashes)).attr("fill", "#2e9b66"); // High Fines, Low Crashes
-  qGrp.append("rect").attr("x", 0).attr("y", y(meanCrashes)).attr("width", x(meanFines)).attr("height", ih - y(meanCrashes)).attr("fill", "#38bdf8"); // Low Fines, Low Crashes
+  // Top-right: High Fines + High Crashes (green — enforcement meets risk)
+  qGrp.append("rect").attr("x", x(meanFines)).attr("y", 0).attr("width", iw - x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#10b981");
+  // Top-left: Low Fines + High Crashes (amber — under-enforced)
+  qGrp.append("rect").attr("x", 0).attr("y", 0).attr("width", x(meanFines)).attr("height", y(meanCrashes)).attr("fill", "#f59e0b");
+  // Bottom-right: High Fines + Low Crashes (green — effective enforcement)
+  qGrp.append("rect").attr("x", x(meanFines)).attr("y", y(meanCrashes)).attr("width", iw - x(meanFines)).attr("height", ih - y(meanCrashes)).attr("fill", "#2e9b66");
+  // Bottom-left: Low Fines + Low Crashes (blue — low activity)
+  qGrp.append("rect").attr("x", 0).attr("y", y(meanCrashes)).attr("width", x(meanFines)).attr("height", ih - y(meanCrashes)).attr("fill", "#38bdf8");
 
-  // Gridlines
+  // --- Gridlines ---
   const xAxisGrid = d3.axisBottom(x).tickSize(-ih).tickFormat("").ticks(8);
   const yAxisGrid = d3.axisLeft(y).tickSize(-iw).tickFormat("").ticks(6);
   g.append("g").attr("class", "x-grid").attr("transform", `translate(0,${ih})`).call(xAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.1)").style("stroke-dasharray", "3,3");
   g.append("g").attr("class", "y-grid").call(yAxisGrid).selectAll("line").style("stroke", "rgba(255,255,255,0.1)").style("stroke-dasharray", "3,3");
   g.selectAll(".domain").remove();
   
-  // Axes
+  // --- Axes ---
   g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).ticks(6).tickFormat(d3.format("~s")).tickSizeOuter(0)).selectAll("text").style("fill", "#4f6275").style("font-size","0.75rem");
   g.append("g").call(d3.axisLeft(y).ticks(6).tickSizeOuter(0)).selectAll("text").style("fill", "#4f6275").style("font-size","0.75rem");
+  // X-axis label
   g.append("text").attr("x", iw/2).attr("y", ih + 45).attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#2e2e2e").text("Total Detection Fines Extracted");
+  // Y-axis label (rotated)
   g.append("text").attr("x", -ih/2).attr("y", -50).attr("transform", "rotate(-90)").attr("text-anchor", "middle").style("font-size","0.85rem").style("font-weight", "600").style("fill","#2e2e2e").text("National Road Crashes (2024)");
    
-  // National Average Crosshairs
+  // --- National-average crosshair lines ---
+  // Vertical line at mean fines
   g.append("line").attr("x1", x(meanFines)).attr("x2", x(meanFines)).attr("y1", 0).attr("y2", ih).style("stroke", "rgba(255,255,255,0.4)").style("stroke-width", "2").style("stroke-dasharray", "4,4");
+  // Horizontal line at mean crashes
   g.append("line").attr("x1", 0).attr("x2", iw).attr("y1", y(meanCrashes)).attr("y2", y(meanCrashes)).style("stroke", "rgba(255,255,255,0.4)").style("stroke-width", "2").style("stroke-dasharray", "4,4");
   
-  // Quadrant analytical labels
+  // --- Quadrant labels ---
   g.append("text").attr("x", iw - 10).attr("y", 20).attr("text-anchor", "end").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • HIGH RISK");
   g.append("text").attr("x", iw - 10).attr("y", ih - 10).attr("text-anchor", "end").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("HIGH ENFORCEMENT • LOW RISK");
   g.append("text").attr("x", 20).attr("y", 20).attr("text-anchor", "start").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • HIGH RISK");
   g.append("text").attr("x", 20).attr("y", ih - 10).attr("text-anchor", "start").style("fill", "rgba(144, 144, 144, 0.7)").style("font-size", "0.7rem").style("font-weight", "bold").text("LOW ENFORCEMENT • LOW RISK");
 
-  // Plotting data
+  // --- Bubble groups (one group per jurisdiction) ---
   const bubbleGrp = g.selectAll(".bubble-grp").data(finesByState).enter().append("g")
     .style("cursor", "pointer")
     .on("click", (e,d) => setGlobalFilter(d.state))
@@ -1195,18 +1441,21 @@ async function drawCrashScatter() {
        hideTip();
     });
 
+  // Bubble circle — radius ∝ √crashes for area-proportional sizing, minimum 10 px
   bubbleGrp.append("circle")
     .attr("cx", d=>x(d.fines)).attr("cy", d=>y(d.crashes))
     .attr("r", d => Math.max(10, Math.sqrt(d.crashes)*2.5)) 
-    .style("fill", d => (PALETTE.jurisdictions[d.state] || "#10b981") + "66")
+    .style("fill", d => (PALETTE.jurisdictions[d.state] || "#10b981") + "66")   // 40 % alpha
     .style("stroke", d => PALETTE.jurisdictions[d.state] || "#10b981").style("stroke-width", "2");
     
+  // State label above each bubble
   bubbleGrp.append("text")
     .attr("x", d=>x(d.fines)).attr("y", d=>y(d.crashes)-Math.max(10, Math.sqrt(d.crashes)*2.5)-8)
     .attr("text-anchor","middle")
     .style("font-size","0.85rem").style("font-weight","800").style("fill", "#1f2937")
     .text(d=>d.state);
     
+  // --- Cross-filter subscription ---
   subscribeToFilter(tf => {
     bubbleGrp.style("opacity", d=>(tf && d.state!==tf)?0.1:1);
     bubbleGrp.selectAll("circle").style("stroke-width", d=>(tf && d.state===tf)?"4":"2");
@@ -1214,9 +1463,14 @@ async function drawCrashScatter() {
 }
 
 // ============================================================
-// Intersection-observer: animate when chart enters viewport
+// INTERSECTION OBSERVER — Lazy Chart Initialisation
+//
+// Each chart is drawn only once, when its container scrolls
+// into view (≥ 15 % visible). This avoids rendering off-screen
+// charts and gives each chart a natural entrance animation.
 // ============================================================
 function observeCharts() {
+  // Registry of chart containers and their draw functions
   const draws = [
     { id: "chart-waffle",       fn: drawWaffle,           done: false },
     { id: "chart-arrests",      fn: drawArrestChargeBars, done: false },
@@ -1230,22 +1484,25 @@ function observeCharts() {
     { id: "chart-crash-scatter",fn: drawCrashScatter,     done: false }
   ];
 
+  // Create one observer; when a chart enters the viewport, draw it and stop watching
   const obs = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (!entry.isIntersecting) return;
       const item = draws.find(d => d.id === entry.target.id);
       if (item && !item.done) {
-        item.done = true;
-        item.fn();
-        obs.unobserve(entry.target);
+        item.done = true;            // mark as rendered to prevent double-draw
+        item.fn();                   // invoke the chart's draw function
+        obs.unobserve(entry.target); // no longer need to watch this element
       }
     });
-  }, { threshold: 0.15 });
+  }, { threshold: 0.15 });           // trigger when 15 % of the element is visible
 
+  // Start observing each chart container
   draws.forEach(d => {
     const el = document.getElementById(d.id);
     if (el) obs.observe(el);
   });
 }
 
+// Kick off observation once the DOM is fully parsed
 document.addEventListener("DOMContentLoaded", observeCharts);

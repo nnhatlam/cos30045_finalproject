@@ -1,12 +1,24 @@
 /* ============================================================
-   data.css — data.html story-page styles
+   data.css — Styles specific to the data story page (data.html)
    Australian Mobile Phone Fines — COS30045 Final Project
+
+   Provides:
+     • Story hero banner with radial glow overlay
+     • Summary stat strip (4-column metric cards)
+     • Story chapter containers (alternating tinted backgrounds)
+     • Chart panels & chart host containers for D3 SVGs
+     • Insight callout cards (blue / green / red variants)
+     • Data sources section
+     • D3-specific overrides (tooltip, waffle, radar, map)
+     • Interactive UI controls (toggle buttons)
+     • Responsive breakpoints for tablet and mobile
    ============================================================ */
 
-/* ── Story Hero ─────────────────────────────────────────────── */
+
+/* ── Story Hero (top banner on data.html) ──────────────────── */
 .story-hero {
   position: relative;
-  background: var(--linear1);
+  background: var(--linear1);         /* reuse the global header gradient */
   border-radius: 22px;
   padding: clamp(2rem, 4vw, 3.4rem) clamp(1.5rem, 3vw, 2.8rem);
   color: #f0f7ff;
@@ -15,14 +27,16 @@
   margin-bottom: 2rem;
 }
 
+/* Radial glow overlay for depth */
 .story-hero::before {
   content: "";
   position: absolute;
   inset: 0;
   background: radial-gradient(ellipse at 80% 20%, rgba(125, 194, 240, 0.22) 0%, transparent 65%);
-  pointer-events: none;
+  pointer-events: none;              /* don't block clicks */
 }
 
+/* "DATA STORY" tag badge */
 .story-hero__tag {
   display: inline-block;
   font-size: 0.72rem;
@@ -37,14 +51,16 @@
   color: #d8eeff;
 }
 
+/* Hero headline */
 .story-hero__title {
   margin: 0 0 1rem;
   font-size: clamp(1.6rem, 3.5vw, 2.6rem);
   font-weight: 700;
   line-height: 1.22;
-  max-width: 20ch;
+  max-width: 20ch;                    /* prevent overly long lines */
 }
 
+/* Hero lead paragraph */
 .story-hero__lead {
   margin: 0 0 1.8rem;
   max-width: 64ch;
@@ -53,6 +69,7 @@
   opacity: 0.92;
 }
 
+/* Down-arrow scroll hint with bounce animation */
 .story-hero__scroll-hint {
   display: flex;
   align-items: center;
@@ -67,7 +84,9 @@
   50%       { transform: translateY(5px); }
 }
 
-/* ── Stat Strip ─────────────────────────────────────────────── */
+
+/* ── Summary Stat Strip ────────────────────────────────────── */
+/* 4 equal-width stat cards in a horizontal strip */
 .stat-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -75,6 +94,7 @@
   margin-bottom: 2.4rem;
 }
 
+/* Individual stat card */
 .stat-card {
   background: var(--white-glass-strong);
   border: 1px solid rgba(255, 255, 255, 0.78);
@@ -93,6 +113,7 @@
   box-shadow: 0 18px 34px rgba(16, 49, 89, 0.18);
 }
 
+/* Large numeric value */
 .stat-card__value {
   font-size: clamp(1.5rem, 2.5vw, 2.1rem);
   font-weight: 700;
@@ -100,13 +121,17 @@
   line-height: 1;
 }
 
+/* Descriptive label below the value */
 .stat-card__label {
   font-size: 0.8rem;
   color: var(--text-secondary);
   font-weight: 500;
 }
 
-/* ── Story Chapters ─────────────────────────────────────────── */
+
+/* ── Story Chapters ────────────────────────────────────────── */
+/* Each chapter is a glass-morphism panel containing narrative
+   text and one or more chart panels */
 .story-chapter {
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.78);
@@ -117,6 +142,7 @@
   margin-bottom: 2rem;
 }
 
+/* Alternate chapter tint for visual rhythm */
 .story-chapter--alt {
   background: linear-gradient(135deg, rgba(46, 155, 102, 0.07), rgba(59, 121, 181, 0.08));
 }
@@ -125,6 +151,7 @@
   margin-bottom: 1.6rem;
 }
 
+/* "CHAPTER 01" pill badge */
 .chapter-number {
   display: inline-block;
   font-size: 0.7rem;
@@ -139,6 +166,7 @@
   margin-bottom: 0.65rem;
 }
 
+/* Chapter heading */
 .chapter-title {
   margin: 0.3rem 0 0.7rem;
   font-size: clamp(1.2rem, 2.2vw, 1.7rem);
@@ -147,6 +175,7 @@
   line-height: 1.25;
 }
 
+/* Chapter body paragraph */
 .chapter-body {
   margin: 0;
   max-width: 72ch;
@@ -155,22 +184,26 @@
   font-size: 1rem;
 }
 
-/* ── Chart Rows ─────────────────────────────────────────────── */
+
+/* ── Chart Rows (layout for chart panels) ──────────────────── */
 .chart-row {
   display: grid;
   gap: 1rem;
   margin-bottom: 1.4rem;
 }
 
+/* Single-chart row */
 .chart-row--single {
   grid-template-columns: 1fr;
 }
 
+/* Side-by-side two-chart row */
 .chart-row--two {
   grid-template-columns: repeat(2, 1fr);
 }
 
-/* ── Chart Panel ────────────────────────────────────────────── */
+
+/* ── Chart Panel (container for a single chart) ────────────── */
 .chart-panel {
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.85);
@@ -193,7 +226,9 @@
   opacity: 0.85;
 }
 
-/* ── Chart Host ─────────────────────────────────────────────── */
+
+/* ── Chart Host (SVG wrapper) ──────────────────────────────── */
+/* Sets minimum height and makes SVG responsive */
 .chart-host {
   width: 100%;
   min-height: 260px;
@@ -206,19 +241,20 @@
   display: block;
 }
 
-/* axis text */
+/* D3 axis tick text styling */
 .chart-host .tick text {
   font-family: "Public Sans", sans-serif;
   font-size: 0.75rem;
   fill: #44627a;
 }
 
-/* ── Insight Cards ──────────────────────────────────────────── */
+
+/* ── Insight Cards (data callouts below charts) ────────────── */
 .insight-card {
   display: flex;
   gap: 0.85rem;
   align-items: flex-start;
-  background: rgba(59, 121, 181, 0.08);
+  background: rgba(59, 121, 181, 0.08);       /* default blue tint */
   border: 1px solid rgba(59, 121, 181, 0.2);
   border-radius: 14px;
   padding: 1rem 1.2rem;
@@ -228,16 +264,19 @@
   margin-top: 0.5rem;
 }
 
+/* Green variant — positive / improvement insights */
 .insight-card--green {
   background: rgba(46, 155, 102, 0.08);
   border-color: rgba(46, 155, 102, 0.22);
 }
 
+/* Red variant — warning / negative insights */
 .insight-card--red {
   background: rgba(231, 76, 60, 0.08);
   border-color: rgba(231, 76, 60, 0.2);
 }
 
+/* Icon sizing within insight cards */
 .insight-icon {
   width: 22px;
   height: 22px;
@@ -247,6 +286,7 @@
   stroke: currentColor;
 }
 
+/* Icon colour overrides per variant */
 .insight-card--green .insight-icon { color: #2e9b66; }
 .insight-card--red   .insight-icon { color: #c0392b; }
 
@@ -254,7 +294,8 @@
   margin: 0;
 }
 
-/* ── Sources Section ────────────────────────────────────────── */
+
+/* ── Sources Section ───────────────────────────────────────── */
 .sources-section {
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.75);
@@ -295,7 +336,10 @@
   color: var(--text-primary);
 }
 
-/* ── Responsive ─────────────────────────────────────────────── */
+
+/* ── Responsive Breakpoints ────────────────────────────────── */
+
+/* Tablet: 2-column stat strip, single-column charts */
 @media (max-width: 900px) {
   .stat-strip {
     grid-template-columns: repeat(2, 1fr);
@@ -306,6 +350,7 @@
   }
 }
 
+/* Mobile: tighter padding */
 @media (max-width: 600px) {
   .stat-strip {
     grid-template-columns: repeat(2, 1fr);
@@ -324,18 +369,24 @@
   }
 }
 
-/* ── D3 global overrides ────────────────────────────────────── */
+
+/* ── D3 Tooltip Override ───────────────────────────────────── */
+/* Make <strong> text inside tooltips a lighter blue for contrast */
 #d3-tooltip strong {
   color: #9fd2ff;
 }
 
-/* ── New Viz Styles ─────────────────────────────────────────── */
+
+/* ── Chart-specific Styles ─────────────────────────────────── */
+
+/* Waffle chart cell borders */
 .waffle-cell {
   rx: 2px;
   stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 1px;
 }
 
+/* 4-column grid for small-multiples (pie charts) */
 .chart-grid-multiples {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -348,24 +399,32 @@
   }
 }
 
+/* Radar chart concentric web circles */
 .radar-web {
   stroke: rgba(0, 0, 0, 0.1);
   fill: none;
 }
+
+/* Radar spoke lines */
 .radar-axis {
   stroke: rgba(0, 0, 0, 0.1);
 }
+
+/* Radar filled polygon area */
 .radar-area {
   fill: rgba(59, 121, 181, 0.2);
   stroke: #3b79b5;
   stroke-width: 2px;
 }
+
+/* Radar data point circles */
 .radar-point {
   fill: #fff;
   stroke: #3b79b5;
   stroke-width: 2px;
 }
 
+/* Choropleth map state paths */
 .map-feature {
   stroke: #fff;
   stroke-width: 0.5px;
@@ -375,7 +434,8 @@
   opacity: 0.8;
 }
 
-/* ── Interactive UI Controls ── */
+
+/* ── Interactive UI Controls (toggle buttons) ──────────────── */
 .ui-controls {
   display: flex;
   justify-content: flex-end;
@@ -383,6 +443,7 @@
   margin-bottom: 0.75rem;
 }
 
+/* Small pill-shaped toggle button */
 .ui-btn {
   font-family: inherit;
   font-size: 0.75rem;
@@ -400,6 +461,7 @@
   background: rgba(59, 121, 181, 0.15);
 }
 
+/* Active / selected state — solid blue fill */
 .ui-btn.active {
   background: #3b79b5;
   color: #fff;
@@ -407,6 +469,7 @@
   box-shadow: 0 4px 10px rgba(59, 121, 181, 0.3);
 }
 
+/* Clickable axis labels (used in radar chart) */
 .axis-label {
   cursor: pointer;
   transition: opacity 0.2s;
@@ -414,4 +477,3 @@
 .axis-label:hover {
   opacity: 0.7;
 }
-
